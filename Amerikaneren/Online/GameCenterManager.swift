@@ -50,15 +50,34 @@ final class GameCenterManager: NSObject, ObservableObject {
 
     /// Starter Game Centers matchmaking-UI for et bord (2–4 mennesker,
     /// resten av setene fylles med CPU-er av verten).
-    func finnMatch() {
+    /// - Parameter playerGroup: 0 = åpen pool. I ranked settes divisjonen
+    ///   (RankTier) som playerGroup, så man kun matches innen samme kategori.
+    func finnMatch(playerGroup: Int = 0) {
         let forespørsel = GKMatchRequest()
         forespørsel.minPlayers = 2
         forespørsel.maxPlayers = 4
-        forespørsel.inviteMessage = "Bli med på et parti Amerikaneren!"
+        forespørsel.playerGroup = playerGroup
+        forespørsel.inviteMessage = playerGroup == 0
+            ? "Bli med på et parti Amerikaneren!"
+            : "Ranked Amerikaneren – tør du?"
 
         guard let mmvc = GKMatchmakerViewController(matchRequest: forespørsel) else { return }
         mmvc.matchmakerDelegate = self
         Self.øversteViewController()?.present(mmvc, animated: true)
+    }
+
+    /// Rapporterer Elo-ratingen til Game Center-ledertavlen (må opprettes
+    /// i App Store Connect med denne id-en).
+    static let ledertavleID = "amerikaneren.elo"
+
+    func rapporterRating(_ rating: Int) {
+        guard GKLocalPlayer.local.isAuthenticated else { return }
+        GKLeaderboard.submitScore(
+            rating, context: 0, player: GKLocalPlayer.local,
+            leaderboardIDs: [Self.ledertavleID]
+        ) { error in
+            if let error { print("Kunne ikke rapportere rating: \(error)") }
+        }
     }
 
     func send(_ melding: OnlineMessage) {

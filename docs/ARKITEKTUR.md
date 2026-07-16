@@ -96,3 +96,29 @@ Vert/klient over `GKMatch`, implementert i `Online/`:
 Flyt: lobby (`OnlineView`) → verten trykker start → `OnlineSetup` per
 spiller → snapshots etter hver handling → rundeoppsummering (verten går
 videre) → partislutt (alle lagrer statistikk).
+
+## Ranked og Elo
+
+`Ranked/Elo.swift` inneholder divisjonene (`RankTier`) og den rene
+kalkulatoren (`EloCalculator`) – begge enhetstestet.
+
+- **Matchmaking i kategori:** divisjonen settes som `playerGroup` på
+  `GKMatchRequest`; Game Center matcher kun spillere med samme gruppe,
+  så en Senator aldri møter en Borger i ranked.
+- **Ratingutveksling:** hver klient sender en `hello`-melding med egen
+  rating når matchen er funnet; verten legger alle ratinger i
+  `OnlineSetup.seatRating`.
+- **Desentralisert beregning:** hver enhet beregner kun sin egen delta
+  (parvis Elo mot de tre andre, egen K-faktor), lagrer den lokalt i
+  `AppState` og rapporterer ny rating til Game Center-ledertavlen.
+  Ingen server trengs – input (ratinger + sluttpoeng) er identisk hos
+  alle, så resultatene er konsistente.
+- CPU-utfyllere har fast rating etter vanskelighetsgrad, så et delvis
+  CPU-bord fortsatt kan rates.
+
+## Haptikk og lyd
+
+`Theme/Feedback.swift` er ett samlingspunkt for all sanselig feedback
+(UIKit-generatorene + systemlyder som plassholdere). Spillhendelser
+kaller `Feedback.kortSpilt()`, `.stikkAvgjort(mitt:)`, `.dinTur()` osv.;
+brukerens av/på-valg lagres i UserDefaults og respekteres ved hvert kall.

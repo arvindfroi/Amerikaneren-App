@@ -1,5 +1,28 @@
 # Utviklingslogg
 
+## v0.5 – Ranked, haptikk/lyd og spillflyt
+
+- **Ranked-modus med Elo:** divisjoner tematisert som politisk karriere
+  (Borger → Ordfører → Senator → Guvernør → Visepresident → President).
+  Divisjonen brukes som Game Center `playerGroup`, så matchmaking kun
+  skjer innen samme kategori. Parvis Elo for fire spillere, K=64 de
+  første ti kampene (kalibrering), deretter K=32. CPU-utfyllere har fast
+  rating etter vanskelighetsgrad. Rating rapporteres til Game
+  Center-ledertavlen `amerikaneren.elo` (må opprettes i App Store
+  Connect). Ratinghistorikk vises i statistikken.
+- **Haptikk og lyd** (`Theme/Feedback.swift`): kort lagt, stikk avgjort,
+  din tur, bud, Amerikaner-melding, runde-/partislutt. Kan skrus av i
+  det nye innstillingsarket (tannhjulet i hovedmenyen). Lydene er
+  systemlyder som plassholdere til egne lydfiler kommer med de øvrige
+  ressursene.
+- **Spillflyt:** lengre pause mellom stikkene så alle rekker å se det
+  siste kortet, «X tok stikket»-banner, replikker som forsvinner av seg
+  selv etter 4 sekunder, og fjærende animasjoner på kortene inn på
+  bordet. Samme flyt offline og online.
+- Innstillingsark: navn, lyd av/på, haptikk av/på, divisjonsstatus.
+- Enhetstester for Elo-beregningen (symmetri, nullsum, K-faktor,
+  divisjonsgrenser).
+
 ## v0.4 – Online ende-til-ende
 
 - Vert/klient-spill over Game Center: verten (lavest gamePlayerID) kjører
@@ -54,13 +77,18 @@
 
 ## Kjente hull / neste steg
 
-- [ ] App Store Connect-oppsett: registrere appen og skru på Game Center
-      for bundle-id-en (kreves før online kan testes på ekte enheter).
+- [ ] App Store Connect-oppsett: registrere appen, skru på Game Center
+      for bundle-id-en, og opprette ledertavlen `amerikaneren.elo`
+      (kreves før online/ranked kan testes på ekte enheter).
+- [ ] Første bygg i Xcode – koden er skrevet uten Mac tilgjengelig, så
+      det kan dukke opp kompileringsfeil som må rettes.
+- [ ] Egne lydfiler (systemlyder er plassholdere i dag) + app-ikon og
+      tegnede portretter (stil à la Brain Training).
 - [ ] Online: rematch-knapp og invitasjon av spesifikke venner
       (`GKMatchmakerViewController` støtter det – bare UI som mangler).
+- [ ] Sesonger/nullstilling av rating og topplistevisning i appen
+      (GKGameCenterViewController for ledertavlen).
 - [ ] Byttekort-varianten (valgfri regel hos kortregler.no).
 - [ ] Motorstøtte for 3/5/6 spillere (companion dekker det i dag).
-- [ ] Lyd og haptikk.
-- [ ] App-ikon og ekte portretter (tegnet stil à la Brain Training).
 - [ ] Lokalisering (alt er norsk i dag) og støtte for mørk modus.
 - [ ] TestFlight-runde med ekte spilltesting av AI-balansen.

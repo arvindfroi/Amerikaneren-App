@@ -15,11 +15,39 @@ final class AppState: ObservableObject {
         didSet { lagre(kampanje, til: "kampanje.json") }
     }
 
+    // Innstillinger
+    @Published var lydPå: Bool {
+        didSet { UserDefaults.standard.set(lydPå, forKey: "lydPå") }
+    }
+    @Published var haptikkPå: Bool {
+        didSet { UserDefaults.standard.set(haptikkPå, forKey: "haptikkPå") }
+    }
+
+    // Ranked / Elo
+    @Published private(set) var eloRating: Int {
+        didSet { UserDefaults.standard.set(eloRating, forKey: "eloRating") }
+    }
+    @Published private(set) var eloHistorikk: [EloEntry] = []
+
+    var rankTier: RankTier { RankTier.forRating(eloRating) }
+    var antallRankedKamper: Int { eloHistorikk.count }
+
     init() {
         harFullførtOnboarding = UserDefaults.standard.bool(forKey: "onboardingFerdig")
         spillerNavn = UserDefaults.standard.string(forKey: "spillerNavn") ?? "Du"
+        lydPå = UserDefaults.standard.object(forKey: "lydPå") as? Bool ?? true
+        haptikkPå = UserDefaults.standard.object(forKey: "haptikkPå") as? Bool ?? true
+        eloRating = UserDefaults.standard.object(forKey: "eloRating") as? Int ?? EloCalculator.startRating
         partier = les([MatchRecord].self, fra: "partier.json") ?? []
         kampanje = les(CampaignProgress.self, fra: "kampanje.json") ?? CampaignProgress()
+        eloHistorikk = les([EloEntry].self, fra: "elo.json") ?? []
+    }
+
+    /// Registrerer resultatet av en ranked-kamp og oppdaterer ratingen.
+    func brukEloResultat(delta: Int, plassering: Int) {
+        eloRating = max(100, eloRating + delta)
+        eloHistorikk.append(EloEntry(rating: eloRating, delta: delta, plassering: plassering))
+        lagre(eloHistorikk, til: "elo.json")
     }
 
     func registrerParti(_ parti: MatchRecord) {

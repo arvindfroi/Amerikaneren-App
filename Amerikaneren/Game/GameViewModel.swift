@@ -8,7 +8,24 @@ final class GameViewModel: ObservableObject {
     @Published private(set) var oppdatering = 0   // bumpes for å tegne på nytt
     @Published var visRundeOppsummering = false
     @Published var visSpillFerdig = false
-    @Published var sisteReplikk: (navn: String, tekst: String)?
+    @Published var sisteReplikk: (navn: String, tekst: String)? {
+        didSet {
+            // Replikker forsvinner av seg selv, så bordet ikke gror igjen.
+            guard sisteReplikk != nil else { return }
+            replikkOppgave?.cancel()
+            replikkOppgave = Task { [weak self] in
+                try? await Task.sleep(nanoseconds: 4_000_000_000)
+                guard !Task.isCancelled else { return }
+                self?.sisteReplikk = nil
+            }
+        }
+    }
+    /// «X tok stikket»-banner, vises et øyeblikk mellom stikkene.
+    @Published var stikkBanner: String?
+
+    private var replikkOppgave: Task<Void, Never>?
+    private var bannerOppgave: Task<Void, Never>?
+    private var varMinTur = false
 
     let engine: GameEngine
     let motstandere: [Opponent]           // sete 1..3
@@ -79,21 +96,50 @@ final class GameViewModel: ObservableObject {
 
     func menneskeByr(_ bud: BidAction) {
         guard engine.giBud(seat: 0, action: bud) else { return }
+        varMinTur = false
+        bud == .amerikaner ? Feedback.amerikanerMeldt() : Feedback.budGitt()
         bump()
         kjørAI()
     }
 
     func menneskeVelgerTrumf(suit: Suit, ønsket: Card) {
         guard engine.velgTrumf(suit: suit, ønsket: ønsket) else { return }
+        Feedback.budGitt()
         bump()
         kjørAI()
     }
 
     func menneskeSpiller(_ kort: Card) {
+        let førTrick = engine.trickNummer
         guard engine.spill(kort: kort, seat: 0) else { return }
+        varMinTur = false
+        Feedback.kortSpilt()
+        etterKortSpilt(førTrick: førTrick)
         etterTrekk()
         bump()
         kjørAI()
+    }
+
+    /// Banner + haptikk når et stikk nettopp ble avgjort.
+    private func etterKortSpilt(førTrick: Int) {
+        guard engine.trickNummer > førTrick, let vinner = engine.sisteStikkVinner else { return }
+        Feedback.stikkAvgjort(mitt: vinner == 0)
+        stikkBanner = vinner == 0 ? "Du tok stikket!" : "\(navn(for: vinner)) tok stikket"
+        bannerOppgave?.cancel()
+        bannerOppgave = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 1_600_000_000)
+            guard !Task.isCancelled else { return }
+            self?.stikkBanner = nil
+        }
+    }
+
+    /// Diskret varsel når turen kommer til mennesket.
+    private func sjekkDinTur() {
+        let minTur = (engine.phase == .spill && engine.aktivSpiller == 0)
+            || (engine.phase == .budrunde && engine.aktivBudgiver == 0)
+            || (engine.phase == .velgTrumf && engine.budgiverSeat == 0)
+        if minTur && !varMinTur { Feedback.dinTur() }
+        varMinTur = minTur
     }
 
     // MARK: - AI-motor
@@ -110,32 +156,46 @@ final class GameViewModel: ObservableObject {
             switch engine.phase {
             case .budrunde:
                 let seat = engine.aktivBudgiver
-                guard seat != 0, let ai = aiSpillere[seat] else { return }
+                guard seat != 0, let ai = aiSpillere[seat] else { sjekkDinTur(); return }
                 try? await Task.sleep(nanoseconds: 700_000_000)
+                guard !Task.isCancelled else { return }
                 let bud = ai.velgBud(engine: engine)
                 if bud == .amerikaner {
                     sisteReplikk = (navn(for: seat), "AMERIKANER! Jeg tar alle tretten alene!")
+                    Feedback.amerikanerMeldt()
                 }
                 engine.giBud(seat: seat, action: bud)
+                sjekkDinTur()
                 bump()
 
             case .velgTrumf:
-                guard let seat = engine.budgiverSeat, seat != 0, let ai = aiSpillere[seat] else { return }
+                guard let seat = engine.budgiverSeat, seat != 0, let ai = aiSpillere[seat] else { sjekkDinTur(); return }
                 try? await Task.sleep(nanoseconds: 900_000_000)
+                guard !Task.isCancelled else { return }
                 if let (suit, ønsket) = ai.velgTrumfOgMakker(engine: engine) {
                     engine.velgTrumf(suit: suit, ønsket: ønsket)
                     sisteReplikk = (navn(for: seat), "\(suit.navn) er trumf. Jeg vil ha \(ønsket.beskrivelse.lowercased())!")
                 }
+                sjekkDinTur()
                 bump()
 
             case .spill:
                 let seat = engine.aktivSpiller
-                guard seat != 0, let ai = aiSpillere[seat] else { return }
-                try? await Task.sleep(nanoseconds: engine.currentTrick.isEmpty ? 800_000_000 : 550_000_000)
+                guard seat != 0, let ai = aiSpillere[seat] else { sjekkDinTur(); return }
+                // Lengre pause i starten av et nytt stikk, så alle rekker
+                // å se det forrige stikket og banneret.
+                let nyttStikk = engine.currentTrick.isEmpty && engine.trickNummer > 0
+                try? await Task.sleep(nanoseconds: nyttStikk ? 1_400_000_000
+                                      : engine.currentTrick.isEmpty ? 800_000_000 : 550_000_000)
+                guard !Task.isCancelled else { return }
                 if let kort = ai.velgKort(engine: engine) {
+                    let førTrick = engine.trickNummer
                     engine.spill(kort: kort, seat: seat)
+                    Feedback.kortSpilt()
+                    etterKortSpilt(førTrick: førTrick)
                     etterTrekk()
                 }
+                sjekkDinTur()
                 bump()
 
             case .rundeFerdig, .spillFerdig, .venterPåStart:
@@ -159,13 +219,18 @@ final class GameViewModel: ObservableObject {
         if engine.phase == .rundeFerdig, scenarioVinner != nil {
             visSpillFerdig = true
             replikkVedSlutt()
+            Feedback.spillSlutt(vant: jegVant)
             return
         }
         if engine.phase == .spillFerdig {
             visSpillFerdig = true
             replikkVedSlutt()
+            Feedback.spillSlutt(vant: jegVant)
         } else {
             visRundeOppsummering = true
+            if let runde = engine.sisteRunde {
+                Feedback.rundeSlutt(bra: runde.poengEndring[0] >= 0)
+            }
         }
     }
 
@@ -236,5 +301,7 @@ final class GameViewModel: ObservableObject {
 
     deinit {
         aiOppgave?.cancel()
+        replikkOppgave?.cancel()
+        bannerOppgave?.cancel()
     }
 }

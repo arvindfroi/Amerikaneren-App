@@ -3,6 +3,7 @@ import Foundation
 enum MatchMode: String, Codable, CaseIterable {
     case offline = "Mot maskinen"
     case online = "Online"
+    case ranked = "Ranked"
     case companion = "Companion"
     case kampanje = "Kampanje"
 }
@@ -39,6 +40,8 @@ struct MatchRecord: Codable, Hashable, Identifiable {
     var runder: [RoundRecord]
     var varighetSekunder: Int = 0
     var kampanjeStageId: String? = nil
+    /// Ratingendring hvis partiet var ranked.
+    var eloDelta: Int? = nil
 
     var vinner: MatchParticipant? { deltakere.first { $0.vantPartiet } }
     var jegVant: Bool { vinner?.erMeg == true }

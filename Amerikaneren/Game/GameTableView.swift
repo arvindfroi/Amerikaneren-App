@@ -199,9 +199,25 @@ struct GameTableView: View {
                             .foregroundStyle(Theme.blekkSvak)
                             .lineLimit(1)
                     }
+                    .transition(.scale(scale: 0.6).combined(with: .opacity))
                 }
             }
+            if let banner = vm.stikkBanner {
+                VStack {
+                    Text(banner)
+                        .font(Theme.kroppFont(15).weight(.heavy))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(Capsule().fill(Theme.grønn))
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                    Spacer()
+                }
+                .padding(.top, 6)
+            }
         }
+        .animation(.spring(response: 0.3, dampingFraction: 0.75), value: vm.oppdatering)
+        .animation(.spring(response: 0.3, dampingFraction: 0.75), value: vm.stikkBanner != nil)
     }
 
     // MARK: - Bunn (spillerens hånd)

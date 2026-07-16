@@ -4,6 +4,7 @@ import SwiftUI
 struct HovedmenyView: View {
     @EnvironmentObject private var appState: AppState
     @State private var viserTutorial = false
+    @State private var viserInnstillinger = false
 
     var body: some View {
         NavigationStack {
@@ -55,6 +56,20 @@ struct HovedmenyView: View {
             .sheet(isPresented: $viserTutorial) {
                 TutorialView()
             }
+            .sheet(isPresented: $viserInnstillinger) {
+                InnstillingerView()
+                    .presentationDetents([.medium])
+            }
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        viserInnstillinger = true
+                    } label: {
+                        Image(systemName: "gearshape.fill")
+                            .foregroundStyle(Theme.blekkSvak)
+                    }
+                }
+            }
         }
         .tint(Theme.blekk)
     }
@@ -70,6 +85,9 @@ struct HovedmenyView: View {
                     Text("Daglig kort-trening med Benjamin Franklin")
                         .font(Theme.kroppFont(14))
                         .foregroundStyle(Theme.blekkSvak)
+                    Text("\(appState.rankTier.emoji) \(appState.rankTier.navn) • \(appState.eloRating)")
+                        .font(Theme.kroppFont(13).weight(.bold))
+                        .foregroundStyle(Theme.rød)
                 }
                 Spacer()
             }

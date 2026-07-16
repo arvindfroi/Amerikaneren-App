@@ -8,9 +8,16 @@ import Foundation
 /// handlinger tilbake. Verten validerer alt mot motoren, så en klient kan
 /// aldri spille ulovlig – og ser aldri andres kort.
 enum OnlineMessage: Codable {
+    case hello(OnlineHello)
     case setup(OnlineSetup)
     case snapshot(OnlineSnapshot)
     case action(OnlineAction)
+}
+
+/// Sendes av hver klient til bordet når matchen er funnet, slik at verten
+/// kjenner ratingen før et ranked-parti settes opp.
+struct OnlineHello: Codable {
+    var rating: Int
 }
 
 /// Sendes én gang fra verten til hver spiller når partiet starter.
@@ -23,6 +30,10 @@ struct OnlineSetup: Codable {
     /// Mottakerens eget sete.
     var dittSete: Int
     var målPoeng: Int
+    /// Ranked-parti: Elo beregnes ved partislutt.
+    var ranked: Bool = false
+    /// Rating per sete ved partistart (CPU-er har fast rating).
+    var seatRating: [Int] = []
 }
 
 /// Handling fra en klient (eller vertens eget UI). Setet utledes av

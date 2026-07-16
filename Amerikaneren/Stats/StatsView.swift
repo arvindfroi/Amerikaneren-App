@@ -13,6 +13,7 @@ struct StatsView: View {
             Theme.papir.ignoresSafeArea()
             ScrollView {
                 VStack(spacing: 18) {
+                    rankedPanel
                     if stats.antallPartier == 0 {
                         SnakkeBoble(tekst: "Ingen partier registrert ennå. Spill et parti – eller før et med companion-modus – så fyller jeg ut grafene dine!")
                     } else {
@@ -37,6 +38,46 @@ struct StatsView: View {
             Button("Avbryt", role: .cancel) {}
         } message: {
             Text("All statistikk og kampanjefremdrift slettes. Dette kan ikke angres.")
+        }
+    }
+
+    private var rankedPanel: some View {
+        PapirPanel {
+            VStack(spacing: 10) {
+                Text("RANKED")
+                    .font(Theme.kroppFont(13).weight(.heavy))
+                    .foregroundStyle(Theme.blekkSvak)
+                    .tracking(2)
+                HStack(spacing: 12) {
+                    Text(appState.rankTier.emoji).font(.system(size: 40))
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("\(appState.rankTier.navn)")
+                            .font(Theme.kroppFont(18).weight(.heavy))
+                            .foregroundStyle(Theme.blekk)
+                        Text("Divisjon \(appState.rankTier.intervall)")
+                            .font(Theme.kroppFont(12))
+                            .foregroundStyle(Theme.blekkSvak)
+                    }
+                    Spacer()
+                    Text("\(appState.eloRating)")
+                        .font(Theme.tallFont(34))
+                        .foregroundStyle(Theme.rød)
+                }
+                if !appState.eloHistorikk.isEmpty {
+                    Divider()
+                    HStack(spacing: 6) {
+                        Text("Siste kamper:")
+                            .font(Theme.kroppFont(12))
+                            .foregroundStyle(Theme.blekkSvak)
+                        ForEach(appState.eloHistorikk.suffix(6)) { kamp in
+                            Text(kamp.delta >= 0 ? "+\(kamp.delta)" : "\(kamp.delta)")
+                                .font(Theme.kroppFont(13).weight(.heavy))
+                                .foregroundStyle(kamp.delta >= 0 ? Theme.grønn : Theme.rød)
+                        }
+                        Spacer()
+                    }
+                }
+            }
         }
     }
 

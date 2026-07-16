@@ -5,6 +5,7 @@ import GameKit
 /// Verten (lavest gamePlayerID) starter partiet; tomme seter fylles med
 /// CPU-er. Selve spillet foregår i OnlineTableView.
 struct OnlineView: View {
+    @EnvironmentObject private var appState: AppState
     @StateObject private var gc = GameCenterManager.delt
     @StateObject private var vm = OnlineGameViewModel()
 
@@ -52,7 +53,13 @@ struct OnlineView: View {
         .navigationTitle("Online")
         .onAppear {
             vm.kobleTil()
+            vm.minRating = appState.eloRating
+            vm.mineRankedKamper = appState.antallRankedKamper
             gc.loggInn()
+        }
+        .onChange(of: gc.match == nil) { _, ingenMatch in
+            // Presenter deg med rating så verten kan sette opp ranked riktig.
+            if !ingenMatch { vm.sendHello() }
         }
         .fullScreenCover(isPresented: $vm.spillAktivt) {
             OnlineTableView(vm: vm)
@@ -64,10 +71,37 @@ struct OnlineView: View {
         SnakkeBoble(tekst: "Innlogget som \(gc.lokaltNavn). Finn et bord med venner eller tilfeldige motstandere!", farge: Theme.grønn.opacity(0.2))
 
         if gc.match == nil {
+            PapirPanel {
+                VStack(spacing: 10) {
+                    HStack {
+                        Text(appState.rankTier.emoji).font(.system(size: 34))
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text("\(appState.rankTier.navn) • \(appState.eloRating)")
+                                .font(Theme.kroppFont(17).weight(.heavy))
+                                .foregroundStyle(Theme.blekk)
+                            Text("Divisjon: \(appState.rankTier.intervall) rating")
+                                .font(Theme.kroppFont(12))
+                                .foregroundStyle(Theme.blekkSvak)
+                        }
+                        Spacer()
+                    }
+                    Button {
+                        vm.rankedØnsket = true
+                        gc.finnMatch(playerGroup: appState.rankTier.rawValue)
+                    } label: {
+                        Label("Ranked – finn motstandere i din divisjon", systemImage: "trophy.fill")
+                    }
+                    .buttonStyle(BTButtonStyle(farge: Theme.rød))
+                    Text("Du matches kun mot spillere i samme divisjon. Rating oppdateres etter hvert parti (Elo).")
+                        .font(Theme.kroppFont(12))
+                        .foregroundStyle(Theme.blekkSvak)
+                }
+            }
             Button {
+                vm.rankedØnsket = false
                 gc.finnMatch()
             } label: {
-                Label("Finn et bord", systemImage: "person.3.fill")
+                Label("Vennskapelig bord", systemImage: "person.3.fill")
             }
             .buttonStyle(BTButtonStyle(farge: Theme.grønn))
         } else {

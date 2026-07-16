@@ -13,6 +13,15 @@ final class OnlineGameViewModel: ObservableObject {
     @Published var snap: OnlineSnapshot?
     @Published var infoTekst: String?
     @Published var statsLagret = false
+    /// Beregnet ratingendring når et ranked-parti er ferdig.
+    @Published var eloResultat: (nyRating: Int, delta: Int, plassering: Int)?
+
+    /// Settes når spilleren starter matchmaking: ranked eller vennskapelig.
+    var rankedØnsket = false
+    /// Egen rating, gis fra viewet (AppState) før matchmaking.
+    var minRating = EloCalculator.startRating
+    /// Antall egne ranked-kamper, til K-faktoren.
+    var mineRankedKamper = 0
 
     private let gc = GameCenterManager.delt
 
@@ -23,9 +32,12 @@ final class OnlineGameViewModel: ObservableObject {
     private var seatNavn: [String] = []
     private var seatIdentitet: [String] = []
     private var aiOppgave: Task<Void, Never>?
+    /// Ratinger mottatt via hello-meldinger, per gamePlayerID.
+    private var mottatteRatinger: [String: Int] = [:]
 
     var erVert: Bool { gc.erVert }
     var mittSete: Int { setup?.dittSete ?? 0 }
+    var erRanked: Bool { setup?.ranked ?? false }
 
     func kobleTil() {
         gc.onMessage = { [weak self] melding, fra in
@@ -34,6 +46,12 @@ final class OnlineGameViewModel: ObservableObject {
         gc.onPlayerDisconnected = { [weak self] spiller in
             self?.spillerKobletFra(spiller)
         }
+    }
+
+    /// Kalles når matchen er funnet: presenter deg med rating, slik at
+    /// verten kan sette opp et eventuelt ranked-parti.
+    func sendHello() {
+        gc.send(.hello(OnlineHello(rating: minRating)))
     }
 
     // MARK: - Vert: oppstart
@@ -56,9 +74,12 @@ final class OnlineGameViewModel: ObservableObject {
         seteTilRemote = [:]
         aiSeter = [:]
 
+        var seatRating: [Int] = []
         for (sete, menneske) in mennesker.enumerated() {
             seatNavn.append(menneske.navn)
             seatIdentitet.append("gc:\(menneske.id)")
+            seatRating.append(menneske.spiller == nil ? minRating
+                              : mottatteRatinger[menneske.id] ?? EloCalculator.startRating)
             if let spiller = menneske.spiller {
                 seteTilRemote[sete] = spiller
             }
@@ -72,6 +93,7 @@ final class OnlineGameViewModel: ObservableObject {
             neste += 1
             seatNavn.append("\(cpu.navn) 🤖")
             seatIdentitet.append("ai:\(cpu.id)")
+            seatRating.append(EloCalculator.cpuRating(cpu.difficulty))
             aiSeter[sete] = AIPlayer(seat: sete, difficulty: cpu.difficulty, personality: cpu.personality)
         }
 
@@ -79,12 +101,14 @@ final class OnlineGameViewModel: ObservableObject {
         for (sete, spiller) in seteTilRemote {
             gc.send(.setup(OnlineSetup(
                 seatNavn: seatNavn, seatIdentitet: seatIdentitet,
-                dittSete: sete, målPoeng: motor.rules.målPoeng
+                dittSete: sete, målPoeng: motor.rules.målPoeng,
+                ranked: rankedØnsket, seatRating: seatRating
             )), til: [spiller])
         }
         let mittSete = seatIdentitet.firstIndex(of: "gc:\(gc.lokalID)") ?? 0
         setup = OnlineSetup(seatNavn: seatNavn, seatIdentitet: seatIdentitet,
-                            dittSete: mittSete, målPoeng: motor.rules.målPoeng)
+                            dittSete: mittSete, målPoeng: motor.rules.målPoeng,
+                            ranked: rankedØnsket, seatRating: seatRating)
 
         motor.startRunde()
         spillAktivt = true
@@ -96,6 +120,9 @@ final class OnlineGameViewModel: ObservableObject {
 
     private func håndter(_ melding: OnlineMessage, fra spiller: GKPlayer) {
         switch melding {
+        case .hello(let hei):
+            mottatteRatinger[spiller.gamePlayerID] = hei.rating
+
         case .setup(let s):
             guard !erVert else { return }
             setup = s
@@ -104,7 +131,10 @@ final class OnlineGameViewModel: ObservableObject {
         case .snapshot(let s):
             guard !erVert else { return }
             snap = s
-            if s.phase == .spillFerdig { infoTekst = nil }
+            if s.phase == .spillFerdig {
+                infoTekst = nil
+                beregnEloOmRanked()
+            }
 
         case .action(let handling):
             guard erVert,
@@ -112,6 +142,26 @@ final class OnlineGameViewModel: ObservableObject {
             else { return }
             utfør(handling, sete: sete)
         }
+    }
+
+    /// Regner ut egen ratingendring når et ranked-parti er ferdig.
+    /// Hver enhet beregner kun sin egen delta – motstandernes K spiller
+    /// ingen rolle for den.
+    private func beregnEloOmRanked() {
+        guard eloResultat == nil, let setup, setup.ranked, let snap,
+              snap.phase == .spillFerdig, setup.seatRating.count == 4 else { return }
+        let mineMotstandere = (0..<4)
+            .filter { $0 != mittSete }
+            .map { (rating: setup.seatRating[$0], poeng: snap.scores[$0]) }
+        let delta = EloCalculator.delta(
+            rating: setup.seatRating[mittSete],
+            poeng: snap.scores[mittSete],
+            motstandere: mineMotstandere,
+            k: EloCalculator.kFaktor(antallRankedKamper: mineRankedKamper)
+        )
+        let plassering = 1 + (0..<4).filter { snap.scores[$0] > snap.scores[mittSete] }.count
+        eloResultat = (nyRating: max(100, setup.seatRating[mittSete] + delta),
+                       delta: delta, plassering: plassering)
     }
 
     /// Vertens motor validerer alle handlinger – ulovlige forkastes stille.
@@ -201,6 +251,7 @@ final class OnlineGameViewModel: ObservableObject {
             gc.send(.snapshot(bilde(for: sete, engine: engine)), til: [spiller])
         }
         snap = bilde(for: mittSete, engine: engine)
+        if snap?.phase == .spillFerdig { beregnEloOmRanked() }
     }
 
     private func bilde(for sete: Int, engine: GameEngine) -> OnlineSnapshot {
@@ -289,7 +340,16 @@ final class OnlineGameViewModel: ObservableObject {
                 poengEndring: Dictionary(uniqueKeysWithValues: zip(ider, runde.poengEndring))
             )
         }
-        appState.registrerParti(MatchRecord(mode: .online, deltakere: deltakere, runder: runder))
+        appState.registrerParti(MatchRecord(
+            mode: setup.ranked ? .ranked : .online,
+            deltakere: deltakere, runder: runder,
+            eloDelta: eloResultat?.delta
+        ))
+        // Ranked: oppdater rating lokalt og rapporter til ledertavlen.
+        if setup.ranked, let resultat = eloResultat {
+            appState.brukEloResultat(delta: resultat.delta, plassering: resultat.plassering)
+            gc.rapporterRating(appState.eloRating)
+        }
     }
 
     func forlat() {
@@ -300,6 +360,9 @@ final class OnlineGameViewModel: ObservableObject {
         snap = nil
         infoTekst = nil
         statsLagret = false
+        eloResultat = nil
+        rankedØnsket = false
+        mottatteRatinger = [:]
         gc.forlatMatch()
     }
 }

@@ -27,6 +27,26 @@ struct OnlineTableView: View {
                 }
             }
         }
+        .onChange(of: vm.snap?.currentTrick.count ?? 0) { gammel, ny in
+            if ny > gammel { Feedback.kortSpilt() }
+        }
+        .onChange(of: vm.snap?.trickNummer ?? 0) { _, _ in
+            guard let snap = vm.snap, !snap.sisteStikk.isEmpty else { return }
+            let vinner = GameEngine.vinnerAvStikk(snap.sisteStikk, trumf: snap.erAmerikaner ? nil : snap.trumf)
+            Feedback.stikkAvgjort(mitt: vinner == vm.mittSete)
+        }
+        .onChange(of: erMinTur) { _, minTur in
+            if minTur { Feedback.dinTur() }
+        }
+    }
+
+    private var erMinTur: Bool {
+        guard let snap = vm.snap else { return false }
+        switch snap.phase {
+        case .budrunde, .spill: return snap.aktivSeat == vm.mittSete
+        case .velgTrumf: return snap.budgiverSeat == vm.mittSete
+        default: return false
+        }
     }
 
     // MARK: - Bordet
@@ -144,8 +164,8 @@ struct OnlineTableView: View {
     }
 
     private func stikkVisning(_ snap: OnlineSnapshot) -> some View {
-        let stikk = snap.currentTrick.isEmpty && snap.phase == .spill
-            ? snap.sisteStikk : snap.currentTrick
+        let viserSisteStikk = snap.currentTrick.isEmpty && snap.phase == .spill
+        let stikk = viserSisteStikk ? snap.sisteStikk : snap.currentTrick
         return ZStack {
             RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .fill(Theme.grønn.opacity(0.12))
@@ -164,9 +184,24 @@ struct OnlineTableView: View {
                             .foregroundStyle(Theme.blekkSvak)
                             .lineLimit(1)
                     }
+                    .transition(.scale(scale: 0.6).combined(with: .opacity))
                 }
             }
+            if viserSisteStikk, !stikk.isEmpty {
+                let vinner = GameEngine.vinnerAvStikk(stikk, trumf: snap.erAmerikaner ? nil : snap.trumf)
+                VStack {
+                    Text(vinner == vm.mittSete ? "Du tok stikket!" : "\(vm.navn(for: vinner)) tok stikket")
+                        .font(Theme.kroppFont(15).weight(.heavy))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(Capsule().fill(Theme.grønn))
+                    Spacer()
+                }
+                .padding(.top, 6)
+            }
         }
+        .animation(.spring(response: 0.3, dampingFraction: 0.75), value: snap.currentTrick)
     }
 
     private func budPanel(_ snap: OnlineSnapshot) -> some View {
@@ -339,6 +374,17 @@ struct OnlineTableView: View {
                         }
                     }
                     if snap.phase == .spillFerdig {
+                        if vm.erRanked, let elo = vm.eloResultat {
+                            HStack(spacing: 8) {
+                                Text(RankTier.forRating(elo.nyRating).emoji)
+                                Text("Ny rating: \(elo.nyRating)")
+                                    .font(Theme.kroppFont(16).weight(.heavy))
+                                    .foregroundStyle(Theme.blekk)
+                                Text(elo.delta >= 0 ? "+\(elo.delta)" : "\(elo.delta)")
+                                    .font(Theme.kroppFont(16).weight(.heavy))
+                                    .foregroundStyle(elo.delta >= 0 ? Theme.grønn : Theme.rød)
+                            }
+                        }
                         Button("Ferdig") {
                             vm.lagreStatistikk(i: appState)
                             vm.forlat()
