@@ -59,7 +59,7 @@ struct OnboardingView: View {
                 .font(Theme.tittelFont(34))
                 .foregroundStyle(Theme.blekk)
                 .multilineTextAlignment(.center)
-            SnakkeBoble(tekst: "Kvakk! Jeg er Professor Duke. Jeg skal lære deg Norges morsomste stikkspill – på under ett minutt.")
+            SnakkeBoble(tekst: "God dag! Benjamin Franklin, til tjeneste. Jeg skal lære deg Norges morsomste stikkspill – på under ett minutt.")
                 .padding(.horizontal, 24)
         }
         .padding()
@@ -108,7 +108,7 @@ struct OnboardingView: View {
     private var sisteSide: some View {
         VStack(spacing: 24) {
             MaskotView(størrelse: 90)
-            Text("Klar, ferdig, kvakk!")
+            Text("Klar, ferdig, spill!")
                 .font(Theme.tittelFont())
                 .foregroundStyle(Theme.blekk)
             SnakkeBoble(tekst: "Vil du ta en grundig gjennomgang med eksempler først, eller hoppe rett i det?")

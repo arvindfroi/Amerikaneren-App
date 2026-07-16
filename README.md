@@ -2,17 +2,15 @@
 
 En iOS-app for det norske kortspillet **Amerikaner**, bygget i SwiftUI.
 Utseendet er inspirert av *Brain Training* (Dr. Kawashima), CPU-motstanderne er
-Civilization-aktige lederprofiler basert på parodier av amerikanske presidenter
-og ikoner, og kampanjen er bygget opp som *Punch-Out!!* – du bokser deg oppover
-ligaene til tittelkampen mot selveste **Onkel Sam**.
-
-> Alle figurer er parodi.
+Civilization-aktige lederprofiler basert på ekte historiske figurer fra
+amerikansk historie, og kampanjen er bygget opp som *Punch-Out!!* – du bokser
+deg oppover ligaene til tittelkampen mot selveste **Onkel Sam**.
 
 ## Funksjoner
 
 | # | Funksjon | Beskrivelse |
 |---|----------|-------------|
-| 0 | **Onboarding & tutorial** | Skippbar onboarding med maskoten «Professor Duke» 🦆🎩 og en seks-stegs interaktiv regelgjennomgang med eksempelkort. Kan hentes fram igjen fra hovedmenyen. |
+| 0 | **Onboarding & tutorial** | Skippbar onboarding der Benjamin Franklin 👴🪁 er læremester, med en seks-stegs interaktiv regelgjennomgang med eksempelkort. Kan hentes fram igjen fra hovedmenyen. |
 | 1 | **Online** | Game Center-lobby med matchmaking (2–4 spillere) og en Codable meldingsprotokoll (`OnlineMessage`) over `GKMatch`. Krever Game Center-oppsett i App Store Connect. |
 | 2 | **Offline** | Fullt spillbart mot 3 CPU-er med fire vanskelighetsgrader (Lett / Middels / Vanskelig / President). Hver CPU har Civ-stil «agenda» og egenskaper (aggresjon, risiko, bløff, lojalitet, storhetsdrøm) som faktisk styrer bud- og spillestilen. |
 | 3 | **Companion-modus** | Digital poengblokk for når dere spiller med ekte kort: 3–6 spillere, automatisk poengutregning (inkl. Amerikaner-meldinger og makkerlag), runde-for-runde-historikk, og lagring rett inn i statistikken. |
@@ -35,11 +33,11 @@ Basert på [Wikipedia](https://no.wikipedia.org/wiki/Amerikaner_(kortspill)) og
   Øvrige spillere får ett poeng per stikk. Amerikaner gir ±52.
 - **Først til 52** vinner. Ved likhet vinner budgiversiden fra siste runde.
 
-## Motstandergalleriet (parodi)
+## Motstandergalleriet
 
-🥉 Georg Vaskington · Ben Franklyn · Tomas Jeffersen
-🥈 Abraham Linkoln · Teddy Rosebilt · F.D. Rooseweldt
-🥇 J.F. Kennedylund · Ronny Reagansen · Dwight Eisenhauger
+🥉 George Washington · Benjamin Franklin · Thomas Jefferson
+🥈 Abraham Lincoln · Theodore Roosevelt · Franklin D. Roosevelt
+🥇 John F. Kennedy · Ronald Reagan · Dwight D. Eisenhower
 🏆 **Onkel Sam** – sluttbossen som spiller feilfritt
 
 ## Bygg og kjør

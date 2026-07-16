@@ -80,7 +80,7 @@ struct PapirPanel<Content: View>: View {
     }
 }
 
-/// Snakkeboble til maskoten «Professor Duke» (og Punch-Out-replikker).
+/// Snakkeboble til læremesteren Benjamin Franklin (og Punch-Out-replikker).
 struct SnakkeBoble: View {
     let tekst: String
     var farge: Color = .white
@@ -101,19 +101,22 @@ struct SnakkeBoble: View {
     }
 }
 
-/// Maskoten: en tegneserie-and med flosshatt («Professor Duke») som guider
-/// spilleren gjennom tutorial – vår Dr. Kawashima.
+/// Læremesteren: Benjamin Franklin – oppfinner, forfatter og kortfilosof –
+/// guider spilleren gjennom tutorialen, vår Dr. Kawashima.
 struct MaskotView: View {
     var størrelse: CGFloat = 64
     var body: some View {
         ZStack {
             Circle()
                 .fill(Theme.gul.opacity(0.8))
-            Text("🦆")
+            Text("👴")
                 .font(.system(size: størrelse * 0.55))
-            Text("🎩")
-                .font(.system(size: størrelse * 0.4))
-                .offset(x: størrelse * 0.02, y: -størrelse * 0.38)
+            Text("👓")
+                .font(.system(size: størrelse * 0.32))
+                .offset(y: -størrelse * 0.06)
+            Text("🪁")
+                .font(.system(size: størrelse * 0.3))
+                .offset(x: størrelse * 0.32, y: -størrelse * 0.32)
         }
         .frame(width: størrelse, height: størrelse)
     }

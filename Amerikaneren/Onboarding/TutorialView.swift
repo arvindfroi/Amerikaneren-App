@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Grundig, skippbar tutorial med eksempelkort – Professor Duke forklarer
+/// Grundig, skippbar tutorial med eksempelkort – Benjamin Franklin forklarer
 /// steg for steg, i Brain Training-ånd.
 struct TutorialView: View {
     @Environment(\.dismiss) private var dismiss
@@ -86,7 +86,7 @@ struct TutorialView: View {
         leksjon("Budrunden! Se på hånden din og gjett hvor mange stikk du og en makker kan ta sammen. Minste bud er 5. Du kan alltid passe.") {
             PapirPanel {
                 VStack(alignment: .leading, spacing: 10) {
-                    budEksempel(navn: "Georg", bud: "6 stikk")
+                    budEksempel(navn: "George", bud: "6 stikk")
                     budEksempel(navn: "Du", bud: "7 stikk")
                     budEksempel(navn: "Teddy", bud: "Pass")
                     budEksempel(navn: "Abraham", bud: "8 stikk")

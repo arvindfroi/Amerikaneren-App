@@ -67,7 +67,7 @@ struct HovedmenyView: View {
                     Text("AMERIKANEREN")
                         .font(Theme.tittelFont(32))
                         .foregroundStyle(Theme.blekk)
-                    Text("Daglig kort-trening med Professor Duke")
+                    Text("Daglig kort-trening med Benjamin Franklin")
                         .font(Theme.kroppFont(14))
                         .foregroundStyle(Theme.blekkSvak)
                 }

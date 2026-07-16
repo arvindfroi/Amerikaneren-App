@@ -2,7 +2,8 @@ import Foundation
 import SwiftUI
 
 /// En CPU-motstander med Civ-inspirert lederprofil og Punch-Out-attityde.
-/// Alle figurer er parodier.
+/// Motstanderne er ekte historiske figurer fra amerikansk historie,
+/// fremstilt med et humoristisk glimt i øyet.
 struct Opponent: Identifiable, Codable, Hashable {
     let id: String
     let navn: String
@@ -20,19 +21,19 @@ struct Opponent: Identifiable, Codable, Hashable {
     var portrettFarge: Color { Color(hex: farge) }
 }
 
-/// Hele motstandergalleriet. Parodi på amerikanske skikkelser.
+/// Hele motstandergalleriet: amerikanske presidenter og ikoner.
 enum OpponentRoster {
     static let alle: [Opponent] = bronse + sølv + gull + [mester]
 
     // MARK: Bronseligaen (Minor Circuit)
     static let bronse: [Opponent] = [
         Opponent(
-            id: "vaskington",
-            navn: "Georg Vaskington",
+            id: "washington",
+            navn: "George Washington",
             tittel: "Grunnleggeren",
             emoji: "🌳",
             farge: "7A9E7E",
-            hjemsted: "Mount Vernon-ish",
+            hjemsted: "Mount Vernon, Virginia",
             agenda: "Kan ikke lyve – byr aldri over evne, og forakter bløffere.",
             difficulty: .lett,
             personality: AIPersonality(aggresjon: 0.3, risiko: 0.2, bløff: 0.0, lojalitet: 0.9, storhetsdrøm: 0.1),
@@ -41,12 +42,12 @@ enum OpponentRoster {
             tapReplikk: "Jeg felte et kirsebærtre én gang. Nå felte du meg."
         ),
         Opponent(
-            id: "franklyn",
-            navn: "Ben Franklyn",
+            id: "franklin",
+            navn: "Benjamin Franklin",
             tittel: "Lynmesteren",
             emoji: "🪁",
             farge: "B8A15C",
-            hjemsted: "Philadelphia-aktig",
+            hjemsted: "Philadelphia, Pennsylvania",
             agenda: "Eksperimenterer med ville bud – av og til slår lynet ned.",
             difficulty: .lett,
             personality: AIPersonality(aggresjon: 0.6, risiko: 0.8, bløff: 0.3, lojalitet: 0.5, storhetsdrøm: 0.3),
@@ -55,12 +56,12 @@ enum OpponentRoster {
             tapReplikk: "Hm. Tilbake til laboratoriet."
         ),
         Opponent(
-            id: "jeffersen",
-            navn: "Tomas Jeffersen",
+            id: "jefferson",
+            navn: "Thomas Jefferson",
             tittel: "Erklæringen",
             emoji: "📜",
             farge: "9E7A5C",
-            hjemsted: "Monticello-light",
+            hjemsted: "Monticello, Virginia",
             agenda: "Erklærer sin uavhengighet fra makkeren – stoler bare på seg selv.",
             difficulty: .middels,
             personality: AIPersonality(aggresjon: 0.5, risiko: 0.5, bløff: 0.2, lojalitet: 0.2, storhetsdrøm: 0.4),
@@ -73,12 +74,12 @@ enum OpponentRoster {
     // MARK: Sølvligaen (Major Circuit)
     static let sølv: [Opponent] = [
         Opponent(
-            id: "linkoln",
-            navn: "Abraham Linkoln",
-            tittel: "Den ærlige",
+            id: "lincoln",
+            navn: "Abraham Lincoln",
+            tittel: "Den ærlige Abe",
             emoji: "🎩",
             farge: "5C6B7A",
-            hjemsted: "Tømmerhytta",
+            hjemsted: "Springfield, Illinois",
             agenda: "Splitter aldri laget sitt – et hus i strid med seg selv faller.",
             difficulty: .middels,
             personality: AIPersonality(aggresjon: 0.4, risiko: 0.35, bløff: 0.05, lojalitet: 1.0, storhetsdrøm: 0.2),
@@ -87,13 +88,13 @@ enum OpponentRoster {
             tapReplikk: "Godt spilt. Det var ærlig vunnet."
         ),
         Opponent(
-            id: "rosebilt",
-            navn: "Teddy Rosebilt",
+            id: "roosevelt-t",
+            navn: "Theodore Roosevelt",
             tittel: "Bamsebjørnen",
             emoji: "🧸",
             farge: "8C6D46",
-            hjemsted: "Villmarken",
-            agenda: "Snakker lavt men byr høyt. Stormer San Juan-haugen i hver budrunde.",
+            hjemsted: "Sagamore Hill, New York",
+            agenda: "Snakker lavt men byr høyt. Stormer San Juan-høyden i hver budrunde.",
             difficulty: .middels,
             personality: AIPersonality(aggresjon: 0.95, risiko: 0.7, bløff: 0.4, lojalitet: 0.6, storhetsdrøm: 0.5),
             introReplikk: "Snakk lavt – og bær et stort bud!",
@@ -101,13 +102,13 @@ enum OpponentRoster {
             tapReplikk: "Grrr. Bamsen er såret, ikke beseiret."
         ),
         Opponent(
-            id: "rooseweldt",
-            navn: "F.D. Rooseweldt",
+            id: "roosevelt-fd",
+            navn: "Franklin D. Roosevelt",
             tittel: "New Deal-eren",
             emoji: "🃏",
             farge: "4E6E8E",
-            hjemsted: "Kaminpraten",
-            agenda: "Det eneste han frykter, er frykten selv – og din trumf-ess.",
+            hjemsted: "Hyde Park, New York",
+            agenda: "Det eneste han frykter, er frykten selv – og trumf-esset ditt.",
             difficulty: .vanskelig,
             personality: AIPersonality(aggresjon: 0.6, risiko: 0.4, bløff: 0.3, lojalitet: 0.8, storhetsdrøm: 0.3),
             introReplikk: "Det eneste vi har å frykte... er min nye giv!",
@@ -119,12 +120,12 @@ enum OpponentRoster {
     // MARK: Gulligaen (World Circuit)
     static let gull: [Opponent] = [
         Opponent(
-            id: "kennedylund",
-            navn: "J.F. Kennedylund",
+            id: "kennedy",
+            navn: "John F. Kennedy",
             tittel: "Månefareren",
             emoji: "🚀",
             farge: "6E5C8E",
-            hjemsted: "Hyannis-porten",
+            hjemsted: "Hyannis Port, Massachusetts",
             agenda: "Byr Amerikaner ikke fordi det er lett, men fordi det er vanskelig.",
             difficulty: .vanskelig,
             personality: AIPersonality(aggresjon: 0.7, risiko: 0.8, bløff: 0.3, lojalitet: 0.6, storhetsdrøm: 0.9),
@@ -133,12 +134,12 @@ enum OpponentRoster {
             tapReplikk: "Houston... vi har et problem."
         ),
         Opponent(
-            id: "reagansen",
-            navn: "Ronny Reagansen",
+            id: "reagan",
+            navn: "Ronald Reagan",
             tittel: "Skuespilleren",
             emoji: "🎬",
             farge: "A15C5C",
-            hjemsted: "Hollywood-åsen",
+            hjemsted: "Rancho del Cielo, California",
             agenda: "Stol på ham – men tell alltid kortene. Bløffer med et smil.",
             difficulty: .vanskelig,
             personality: AIPersonality(aggresjon: 0.6, risiko: 0.5, bløff: 0.9, lojalitet: 0.5, storhetsdrøm: 0.4),
@@ -147,12 +148,12 @@ enum OpponentRoster {
             tapReplikk: "Vel... der har du meg igjen."
         ),
         Opponent(
-            id: "eisenhauger",
-            navn: "Dwight Eisenhauger",
+            id: "eisenhower",
+            navn: "Dwight D. Eisenhower",
             tittel: "Generalen",
             emoji: "⭐",
             farge: "5C7A5C",
-            hjemsted: "Hovedkvarteret",
+            hjemsted: "Abilene, Kansas",
             agenda: "Planlegger hvert stikk som en landgang. Ingenting overlates til flaks.",
             difficulty: .vanskelig,
             personality: AIPersonality(aggresjon: 0.5, risiko: 0.2, bløff: 0.1, lojalitet: 0.9, storhetsdrøm: 0.2),
@@ -162,7 +163,7 @@ enum OpponentRoster {
         )
     ]
 
-    // MARK: Mesteren (Mr. Dream-parodien)
+    // MARK: Mesteren
     static let mester = Opponent(
         id: "onkelsam",
         navn: "Onkel Sam",

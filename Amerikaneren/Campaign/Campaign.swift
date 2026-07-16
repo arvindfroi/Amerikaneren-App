@@ -32,18 +32,18 @@ enum CampaignData {
             id: "bronse", navn: "Bronseligaen", emoji: "🥉",
             stages: [
                 CampaignStage(
-                    id: "b1", hovedmotstanderId: "vaskington",
+                    id: "b1", hovedmotstanderId: "washington",
                     scenarioTittel: "Kirsebærtreet",
                     scenarioTekst: "Grunnleggeren tar imot deg med åpne kort og ærlige bud. Slå ham i et rent parti til 52."
                 ),
                 CampaignStage(
-                    id: "b2", hovedmotstanderId: "franklyn",
+                    id: "b2", hovedmotstanderId: "franklin",
                     scenarioTittel: "Lyn og trumf",
-                    scenarioTekst: "Franklyn eksperimenterer vilt. Han starter med 8 poeng i kondensatoren – ta ham igjen!",
+                    scenarioTekst: "Franklin eksperimenterer vilt. Han starter med 8 poeng i kondensatoren – ta ham igjen!",
                     motstanderStartPoeng: 8
                 ),
                 CampaignStage(
-                    id: "b3", hovedmotstanderId: "jeffersen",
+                    id: "b3", hovedmotstanderId: "jefferson",
                     scenarioTittel: "Uavhengighetserklæringen",
                     scenarioTekst: "Bevis din egen uavhengighet: du må vinne minst én budrunde med bud på 7 eller mer for å ta kretsen.",
                     kravMinsteBud: 7
@@ -54,19 +54,19 @@ enum CampaignData {
             id: "solv", navn: "Sølvligaen", emoji: "🥈",
             stages: [
                 CampaignStage(
-                    id: "s1", hovedmotstanderId: "linkoln",
+                    id: "s1", hovedmotstanderId: "lincoln",
                     scenarioTittel: "Et hus i strid",
-                    scenarioTekst: "Linkoln splittes aldri fra makkeren sin. Du starter 5 poeng bak – samle laget ditt.",
+                    scenarioTekst: "Lincoln splittes aldri fra makkeren sin. Du starter 5 poeng bak – samle laget ditt.",
                     motstanderStartPoeng: 5
                 ),
                 CampaignStage(
-                    id: "s2", hovedmotstanderId: "rosebilt",
+                    id: "s2", hovedmotstanderId: "roosevelt-t",
                     scenarioTittel: "Stormløpet",
                     scenarioTekst: "Teddy byr høyt hver eneste runde. Sprintpartiet går bare til 39 poeng – heng med!",
                     målPoeng: 39
                 ),
                 CampaignStage(
-                    id: "s3", hovedmotstanderId: "rooseweldt",
+                    id: "s3", hovedmotstanderId: "roosevelt-fd",
                     scenarioTittel: "Den nye given",
                     scenarioTekst: "FDR starter med 10 poeng i depresjonshjelp. Vis at du ikke frykter noen ting.",
                     motstanderStartPoeng: 10
@@ -77,18 +77,18 @@ enum CampaignData {
             id: "gull", navn: "Gulligaen", emoji: "🥇",
             stages: [
                 CampaignStage(
-                    id: "g1", hovedmotstanderId: "kennedylund",
+                    id: "g1", hovedmotstanderId: "kennedy",
                     scenarioTittel: "Månekappløpet",
-                    scenarioTekst: "Først til månen – altså 52. Kennedylund elsker Amerikaner-meldinger. Ikke la ham lette."
+                    scenarioTekst: "Først til månen – altså 52. Kennedy elsker Amerikaner-meldinger. Ikke la ham lette."
                 ),
                 CampaignStage(
-                    id: "g2", hovedmotstanderId: "reagansen",
+                    id: "g2", hovedmotstanderId: "reagan",
                     scenarioTittel: "Bløffmuren",
                     scenarioTekst: "Skuespilleren bløffer i annenhver budrunde. Du må vinne en budrunde med bud på 8+ for å avsløre ham.",
                     kravMinsteBud: 8
                 ),
                 CampaignStage(
-                    id: "g3", hovedmotstanderId: "eisenhauger",
+                    id: "g3", hovedmotstanderId: "eisenhower",
                     scenarioTittel: "D-dagen",
                     scenarioTekst: "Generalen har planlagt alt og starter med 12 poeng. Maratonpartiet går til 65.",
                     motstanderStartPoeng: 12, målPoeng: 65
