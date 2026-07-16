@@ -79,6 +79,10 @@ struct StatsView: View {
                     statBoks(tall: "\(stats.amerikanerKlart)", navn: "Amerikanere klart", farge: Theme.gul)
                     statBoks(tall: String(format: "%.1f", stats.stikkPerRunde), navn: "Stikk/runde")
                 }
+                HStack(spacing: 12) {
+                    statBoks(tall: stats.favorittTrumf ?? "–", navn: "Favorittrumf")
+                    statBoks(tall: String(format: "%.1f", stats.snittPoeng), navn: "Snittpoeng/parti")
+                }
             }
         }
     }

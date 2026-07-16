@@ -66,6 +66,11 @@ struct GameTableView: View {
                     .font(Theme.kroppFont(14))
                     .foregroundStyle(Theme.blekkSvak)
             }
+            if let fremdrift = budlagFremdrift {
+                Text(fremdrift)
+                    .font(Theme.kroppFont(14).weight(.bold))
+                    .foregroundStyle(Theme.rød)
+            }
             Text("Stikk \(min(vm.engine.trickNummer + 1, 13))/13")
                 .font(Theme.kroppFont(14))
                 .foregroundStyle(Theme.blekkSvak)
@@ -135,6 +140,19 @@ struct GameTableView: View {
 
     private func sisteBud(for seat: Int) -> String? {
         vm.engine.bids.last { $0.seat == seat }.map { $0.action.beskrivelse }
+    }
+
+    /// Budlagets fremdrift mot budet, basert på det som er offentlig kjent
+    /// (uavslørt makkers stikk telles ikke med).
+    private var budlagFremdrift: String? {
+        guard vm.engine.phase == .spill, !vm.engine.erAmerikaner,
+              let budgiver = vm.engine.budgiverSeat,
+              case .bud(let mål)? = vm.engine.høyesteBud?.action else { return nil }
+        var lagStikk = vm.engine.stikkTatt[budgiver]
+        if vm.engine.makkerAvslørt, let makker = vm.engine.makkerSeat {
+            lagStikk += vm.engine.stikkTatt[makker]
+        }
+        return "Budlaget: \(lagStikk)/\(mål)"
     }
 
     // MARK: - Midten

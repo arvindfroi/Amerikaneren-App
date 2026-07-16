@@ -181,20 +181,25 @@ struct AIPlayer {
         return lavest(lovlige, trumf: trumf)
     }
 
+    /// Lagvurdering sett fra dette setet, med den informasjonen setet
+    /// faktisk har: budgiveren og en avslørt makker er kjent for alle,
+    /// mens en uavslørt makker bare kjenner laget sitt selv.
     private func erPåMittLag(_ annenSeat: Int, engine: GameEngine) -> Bool {
         guard annenSeat != seat else { return true }
-        guard !engine.erAmerikaner else { return false }
-        guard let budgiver = engine.budgiverSeat else { return false }
-        let lag = [budgiver, engine.makkerAvslørt ? engine.makkerSeat : jegErMakker(engine: engine) ? engine.makkerSeat : nil]
-            .compactMap { $0 }
-        let jegPåLaget = lag.contains(seat)
-        let hanPåLaget = lag.contains(annenSeat)
-        // Uavslørt makker vet selv hvem den spiller med; andre antar motpart.
-        return jegPåLaget == hanPåLaget && (jegPåLaget || engine.makkerAvslørt || !lag.contains(annenSeat))
-    }
+        guard !engine.erAmerikaner, let budgiver = engine.budgiverSeat else { return false }
 
-    private func jegErMakker(engine: GameEngine) -> Bool {
-        engine.makkerSeat == seat
+        let jegErBudgiverlag = seat == budgiver || engine.makkerSeat == seat
+        let annenErBudgiverlag: Bool
+        if annenSeat == budgiver {
+            annenErBudgiverlag = true
+        } else if engine.makkerSeat == annenSeat {
+            // Budgiveren og makkeren selv kjenner koblingen fra start;
+            // forsvarerne først når ønskekortet er lagt.
+            annenErBudgiverlag = jegErBudgiverlag || engine.makkerAvslørt
+        } else {
+            annenErBudgiverlag = false
+        }
+        return jegErBudgiverlag == annenErBudgiverlag
     }
 
     private func kortStyrke(_ kort: Card, trumf: Suit?) -> Int {

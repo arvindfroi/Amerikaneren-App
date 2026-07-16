@@ -57,6 +57,13 @@ Kjør enhetstestene (spillmotor + AI) med **⌘U**.
 For onlinespill: skru på Game Center-capability for din egen bundle-id i
 App Store Connect (entitlements-filen ligger klar).
 
+## Dokumentasjon
+
+- [docs/ARKITEKTUR.md](docs/ARKITEKTUR.md) – lagdeling, dataflyt, persistens og designvalg
+- [docs/REGLER.md](docs/REGLER.md) – reglene slik de er implementert, med kilder og bevisste avvik
+- [docs/AI.md](docs/AI.md) – hvordan CPU-ene vurderer hånden, byr og spiller, per vanskelighetsgrad
+- [docs/UTVIKLINGSLOGG.md](docs/UTVIKLINGSLOGG.md) – hva som er gjort og hva som gjenstår
+
 ## Arkitektur
 
 ```

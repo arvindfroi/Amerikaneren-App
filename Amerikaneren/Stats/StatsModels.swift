@@ -60,12 +60,14 @@ struct AggregatedStats {
     var lengsteSeiersrekke = 0
     var nåværendeRekke = 0
     var partierPerModus: [MatchMode: Int] = [:]
+    var trumfValg: [String: Int] = [:]   // trumffarge -> antall ganger valgt som budgiver
 
     var seiersprosent: Double { antallPartier == 0 ? 0 : Double(seire) / Double(antallPartier) * 100 }
     var budTreffprosent: Double { budGitt == 0 ? 0 : Double(budKlart) / Double(budGitt) * 100 }
     var snittBud: Double { budGitt == 0 ? 0 : Double(sumBudStørrelse) / Double(budGitt) }
     var stikkPerRunde: Double { antallRunder == 0 ? 0 : Double(totaleStikk) / Double(antallRunder) }
     var snittPoeng: Double { antallPartier == 0 ? 0 : Double(poengSum) / Double(antallPartier) }
+    var favorittTrumf: String? { trumfValg.max { $0.value < $1.value }?.key }
 
     static func beregn(for deltakerId: String, fra partier: [MatchRecord]) -> AggregatedStats {
         var s = AggregatedStats()
@@ -89,6 +91,7 @@ struct AggregatedStats {
                 if runde.budgiverId == deltakerId {
                     s.budGitt += 1
                     if runde.klarte { s.budKlart += 1 }
+                    if let trumf = runde.trumf { s.trumfValg[trumf, default: 0] += 1 }
                     if runde.erAmerikanerMelding {
                         s.amerikanerMeldinger += 1
                         if runde.klarte { s.amerikanerKlart += 1 }
