@@ -1,5 +1,19 @@
 # Utviklingslogg
 
+## v0.4 – Online ende-til-ende
+
+- Vert/klient-spill over Game Center: verten (lavest gamePlayerID) kjører
+  `GameEngine` som eneste autoritet, klientene speiler personaliserte
+  snapshots og sender handlinger.
+- Skjult informasjon bevart online: hver spiller mottar kun egen hånd,
+  egne lovlige trekk, og makkeren avsløres først når ønskekortet legges.
+- 2–4 mennesker per bord; CPU-er fra motstandergalleriet fyller tomme
+  seter, og en CPU tar over hvis noen kobler fra midt i partiet.
+- Online-partier lagres i statistikken på hver enhet (verten sender full
+  rundehistorikk ved partislutt), så H2H fungerer mot venner.
+- Nytt online-spillebord (`OnlineTableView`) med samme designspråk som
+  offline-bordet.
+
 ## v0.3 – Dokumentasjon og finpuss
 
 - Dokumentasjon: `docs/ARKITEKTUR.md`, `docs/REGLER.md`, `docs/AI.md`.
@@ -40,8 +54,13 @@
 
 ## Kjente hull / neste steg
 
-- [ ] Online: koble vert/klient-flyten mot `GameEngine` (protokollen finnes).
+- [ ] App Store Connect-oppsett: registrere appen og skru på Game Center
+      for bundle-id-en (kreves før online kan testes på ekte enheter).
+- [ ] Online: rematch-knapp og invitasjon av spesifikke venner
+      (`GKMatchmakerViewController` støtter det – bare UI som mangler).
 - [ ] Byttekort-varianten (valgfri regel hos kortregler.no).
 - [ ] Motorstøtte for 3/5/6 spillere (companion dekker det i dag).
 - [ ] Lyd og haptikk.
 - [ ] App-ikon og ekte portretter (tegnet stil à la Brain Training).
+- [ ] Lokalisering (alt er norsk i dag) og støtte for mørk modus.
+- [ ] TestFlight-runde med ekte spilltesting av AI-balansen.

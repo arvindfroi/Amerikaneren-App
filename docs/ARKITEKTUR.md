@@ -72,9 +72,27 @@ håndteres i `GameViewModel`, ikke i motoren: forsprang legges som en
 justering utenpå `engine.scores`, og budkravet sjekkes mot rundehistorikken.
 Motoren forblir dermed ren standard-Amerikaner.
 
-## Online-design (skisse)
+## Online-design
 
-Verten (først i `GKMatch`) er tenkt å kjøre `GameEngine` som autoritet og
-kringkaste tilstand; klientene sender handlinger som `OnlineMessage`.
-Protokollen og transporten ligger klar i `GameCenterManager`; selve
-vert/klient-koblingen mot motoren er neste byggetrinn.
+Vert/klient over `GKMatch`, implementert i `Online/`:
+
+- **Vertsvalg:** Spilleren med lavest `gamePlayerID` er vert – deterministisk
+  likt på alle enheter, ingen forhandling nødvendig.
+- **Autoritet:** Kun verten kjører `GameEngine`. Klientene har ingen motor;
+  de tegner `OnlineSnapshot`-er og sender `OnlineAction`-er. Verten
+  validerer alle handlinger mot motoren, så en klient kan verken spille
+  ulovlig eller utgi seg for et annet sete (setet utledes av avsenderen).
+- **Skjult informasjon:** Snapshots er personaliserte – hver spiller får
+  kun sin egen hånd og sine lovlige trekk, og `makkerSeat` sendes først
+  når makkeren er avslørt. Ingen klient har data den ikke skal se.
+- **CPU-utfyllere:** Med 2–3 mennesker fyller verten setene med CPU-er fra
+  motstandergalleriet og driver dem i samme AI-løkke som offline.
+- **Frafall:** Kobler en spiller fra, erstatter verten setet med en CPU og
+  spillet fortsetter. Faller verten fra, avsluttes partiet hos klientene.
+- **Statistikk:** Ved partislutt sender verten hele rundehistorikken; hver
+  enhet lagrer sin egen `MatchRecord` med seg selv som «meg», så H2H
+  fungerer mot både venner (Game Center-id) og CPU-utfyllere.
+
+Flyt: lobby (`OnlineView`) → verten trykker start → `OnlineSetup` per
+spiller → snapshots etter hver handling → rundeoppsummering (verten går
+videre) → partislutt (alle lagrer statistikk).

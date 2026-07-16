@@ -2,18 +2,6 @@ import Foundation
 import GameKit
 import UIKit
 
-/// Meldingsprotokollen som sendes mellom spillere over GKMatch.
-/// Verten (laveste playerID) kjører GameEngine og kringkaster tilstand;
-/// klientene sender handlinger.
-enum OnlineMessage: Codable {
-    case handUpdate(seat: Int, hand: [Card])
-    case bidPlaced(seat: Int, action: BidAction)
-    case trumpChosen(suit: Suit, requested: Card)
-    case cardPlayed(seat: Int, card: Card)
-    case stateSync(scores: [Int], phase: String, activeSeat: Int)
-    case chat(seat: Int, text: String)
-}
-
 /// Håndterer Game Center-innlogging, matchmaking og meldingsflyt.
 /// Krever Game Center-capability og at appen er registrert i App Store Connect.
 @MainActor
@@ -21,10 +9,25 @@ final class GameCenterManager: NSObject, ObservableObject {
     @Published var erInnlogget = false
     @Published var innloggingsFeil: String?
     @Published var match: GKMatch?
-    @Published var mottatteMeldinger: [OnlineMessage] = []
     @Published var spillereIMatch: [String] = []
 
+    /// Kalles for hver innkommende melding, med avsenderen.
+    var onMessage: ((OnlineMessage, GKPlayer) -> Void)?
+    /// Kalles når en spiller kobler fra.
+    var onPlayerDisconnected: ((GKPlayer) -> Void)?
+
     static let delt = GameCenterManager()
+
+    var lokalID: String { GKLocalPlayer.local.gamePlayerID }
+    var lokaltNavn: String { GKLocalPlayer.local.displayName }
+
+    /// Verten er spilleren med lavest gamePlayerID – deterministisk likt
+    /// på alle enheter, uten ekstra forhandling.
+    var erVert: Bool {
+        guard let match else { return false }
+        let alle = [lokalID] + match.players.map(\.gamePlayerID)
+        return alle.min() == lokalID
+    }
 
     func loggInn() {
         GKLocalPlayer.local.authenticateHandler = { [weak self] viewController, error in
@@ -45,7 +48,8 @@ final class GameCenterManager: NSObject, ObservableObject {
         }
     }
 
-    /// Starter Game Centers matchmaking-UI for et 4-spillerbord.
+    /// Starter Game Centers matchmaking-UI for et bord (2–4 mennesker,
+    /// resten av setene fylles med CPU-er av verten).
     func finnMatch() {
         let forespørsel = GKMatchRequest()
         forespørsel.minPlayers = 2
@@ -59,9 +63,14 @@ final class GameCenterManager: NSObject, ObservableObject {
 
     func send(_ melding: OnlineMessage) {
         guard let match else { return }
+        send(melding, til: match.players)
+    }
+
+    func send(_ melding: OnlineMessage, til spillere: [GKPlayer]) {
+        guard let match, !spillere.isEmpty else { return }
         do {
             let data = try JSONEncoder().encode(melding)
-            try match.sendData(toAllPlayers: data, with: .reliable)
+            try match.send(data, to: spillere, dataMode: .reliable)
         } catch {
             print("Kunne ikke sende melding: \(error)")
         }
@@ -71,7 +80,6 @@ final class GameCenterManager: NSObject, ObservableObject {
         match?.disconnect()
         match = nil
         spillereIMatch = []
-        mottatteMeldinger = []
     }
 
     private static func øversteViewController() -> UIViewController? {
@@ -102,7 +110,7 @@ extension GameCenterManager: GKMatchmakerViewControllerDelegate {
             viewController.dismiss(animated: true)
             match.delegate = self
             self.match = match
-            self.spillereIMatch = [GKLocalPlayer.local.displayName] + match.players.map(\.displayName)
+            self.spillereIMatch = [self.lokaltNavn] + match.players.map(\.displayName)
         }
     }
 }
@@ -111,13 +119,16 @@ extension GameCenterManager: GKMatchDelegate {
     nonisolated func match(_ match: GKMatch, didReceive data: Data, fromRemotePlayer player: GKPlayer) {
         guard let melding = try? JSONDecoder().decode(OnlineMessage.self, from: data) else { return }
         Task { @MainActor in
-            self.mottatteMeldinger.append(melding)
+            self.onMessage?(melding, player)
         }
     }
 
     nonisolated func match(_ match: GKMatch, player: GKPlayer, didChange state: GKPlayerConnectionState) {
         Task { @MainActor in
-            self.spillereIMatch = [GKLocalPlayer.local.displayName] + match.players.map(\.displayName)
+            self.spillereIMatch = [self.lokaltNavn] + match.players.map(\.displayName)
+            if state == .disconnected {
+                self.onPlayerDisconnected?(player)
+            }
         }
     }
 }

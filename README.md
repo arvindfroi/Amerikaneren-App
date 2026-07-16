@@ -11,7 +11,7 @@ deg oppover ligaene til tittelkampen mot selveste **Onkel Sam**.
 | # | Funksjon | Beskrivelse |
 |---|----------|-------------|
 | 0 | **Onboarding & tutorial** | Skippbar onboarding der Benjamin Franklin 👴🪁 er læremester, med en seks-stegs interaktiv regelgjennomgang med eksempelkort. Kan hentes fram igjen fra hovedmenyen. |
-| 1 | **Online** | Game Center-lobby med matchmaking (2–4 spillere) og en Codable meldingsprotokoll (`OnlineMessage`) over `GKMatch`. Krever Game Center-oppsett i App Store Connect. |
+| 1 | **Online** | Fullt vert/klient-spill over Game Center (2–4 mennesker, CPU-er fyller tomme seter). Verten kjører motoren som autoritet; hver spiller ser kun sin egen hånd. Faller noen fra, tar en CPU over. Krever Game Center-oppsett i App Store Connect. |
 | 2 | **Offline** | Fullt spillbart mot 3 CPU-er med fire vanskelighetsgrader (Lett / Middels / Vanskelig / President). Hver CPU har Civ-stil «agenda» og egenskaper som styrer budgivningen og trumfbruken (man bløffer lite i Amerikaner, så bløff-trekket betyr bevisst lite). På President-nivå spiller alle perfekt – personligheten skrus av. |
 | 3 | **Companion-modus** | Digital poengblokk for når dere spiller med ekte kort: 3–6 spillere, automatisk poengutregning (inkl. Amerikaner-meldinger og makkerlag), runde-for-runde-historikk, og lagring rett inn i statistikken. |
 | 4 | **Statistikk & H2H** | Seiersprosent, rekker, budtreff, snittbud, Amerikaner-forsøk, stikk per runde, partier per modus – pluss detaljert head-to-head per rival: innbyrdes score, snittmargin, største seier, formkurve (siste 5) og full møtehistorikk. |

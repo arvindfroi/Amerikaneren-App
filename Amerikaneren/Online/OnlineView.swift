@@ -1,11 +1,12 @@
 import SwiftUI
 import GameKit
 
-/// Online-lobbyen: Game Center-innlogging og matchmaking.
-/// Fullt onlinespill krever Game Center-oppsett i App Store Connect;
-/// meldingsprotokollen ligger klar i GameCenterManager.
+/// Online-lobbyen: Game Center-innlogging, matchmaking og oppstart.
+/// Verten (lavest gamePlayerID) starter partiet; tomme seter fylles med
+/// CPU-er. Selve spillet foregår i OnlineTableView.
 struct OnlineView: View {
     @StateObject private var gc = GameCenterManager.delt
+    @StateObject private var vm = OnlineGameViewModel()
 
     var body: some View {
         ZStack {
@@ -18,33 +19,7 @@ struct OnlineView: View {
                         .foregroundStyle(Theme.blekk)
 
                     if gc.erInnlogget {
-                        SnakkeBoble(tekst: "Innlogget som \(gcNavn). Finn et bord med venner eller tilfeldige motstandere via Game Center!", farge: Theme.grønn.opacity(0.2))
-                        Button {
-                            gc.finnMatch()
-                        } label: {
-                            Label("Finn et bord", systemImage: "person.3.fill")
-                        }
-                        .buttonStyle(BTButtonStyle(farge: Theme.grønn))
-
-                        if gc.match != nil {
-                            PapirPanel {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Text("Ved bordet nå:")
-                                        .font(Theme.kroppFont(15).weight(.bold))
-                                        .foregroundStyle(Theme.blekk)
-                                    ForEach(gc.spillereIMatch, id: \.self) { navn in
-                                        Label(navn, systemImage: "person.fill")
-                                            .font(Theme.kroppFont(14))
-                                            .foregroundStyle(Theme.blekk)
-                                    }
-                                    Text("Venter på at bordet fylles… Partiet starter automatisk med 4 spillere.")
-                                        .font(Theme.kroppFont(12))
-                                        .foregroundStyle(Theme.blekkSvak)
-                                    Button("Forlat bordet") { gc.forlatMatch() }
-                                        .buttonStyle(BTButtonStyle(farge: Theme.rød, stor: false))
-                                }
-                            }
-                        }
+                        innloggetInnhold
                     } else {
                         SnakkeBoble(tekst: "Onlinespill går gjennom Game Center. Logg inn, så finner vi motstandere til deg!")
                         Button {
@@ -65,7 +40,7 @@ struct OnlineView: View {
                             Label("Slik virker det", systemImage: "info.circle.fill")
                                 .font(Theme.kroppFont(14).weight(.bold))
                                 .foregroundStyle(Theme.blekk)
-                            Text("Online-partier spilles med samme regler som offline: 4 spillere, hemmelig makker, først til 52. Resultater teller i statistikken og H2H-oversikten din.")
+                            Text("Samme regler som offline: 4 ved bordet, hemmelig makker, først til 52. Er dere færre enn fire, fyller CPU-er de tomme setene. Faller noen fra, tar en CPU over. Resultatene teller i statistikken og H2H-oversikten din.")
                                 .font(Theme.kroppFont(13))
                                 .foregroundStyle(Theme.blekkSvak)
                         }
@@ -75,10 +50,54 @@ struct OnlineView: View {
             }
         }
         .navigationTitle("Online")
-        .onAppear { gc.loggInn() }
+        .onAppear {
+            vm.kobleTil()
+            gc.loggInn()
+        }
+        .fullScreenCover(isPresented: $vm.spillAktivt) {
+            OnlineTableView(vm: vm)
+        }
     }
 
-    private var gcNavn: String {
-        GKLocalPlayer.local.displayName
+    @ViewBuilder
+    private var innloggetInnhold: some View {
+        SnakkeBoble(tekst: "Innlogget som \(gc.lokaltNavn). Finn et bord med venner eller tilfeldige motstandere!", farge: Theme.grønn.opacity(0.2))
+
+        if gc.match == nil {
+            Button {
+                gc.finnMatch()
+            } label: {
+                Label("Finn et bord", systemImage: "person.3.fill")
+            }
+            .buttonStyle(BTButtonStyle(farge: Theme.grønn))
+        } else {
+            PapirPanel {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Ved bordet nå:")
+                        .font(Theme.kroppFont(15).weight(.bold))
+                        .foregroundStyle(Theme.blekk)
+                    ForEach(gc.spillereIMatch, id: \.self) { navn in
+                        Label(navn, systemImage: "person.fill")
+                            .font(Theme.kroppFont(14))
+                            .foregroundStyle(Theme.blekk)
+                    }
+                    if gc.spillereIMatch.count < 4 {
+                        Label("\(4 - gc.spillereIMatch.count) CPU-utfyller(e)", systemImage: "cpu")
+                            .font(Theme.kroppFont(14))
+                            .foregroundStyle(Theme.blekkSvak)
+                    }
+                    if gc.erVert {
+                        Button("Start partiet!") { vm.startSomVert() }
+                            .buttonStyle(BTButtonStyle(farge: Theme.rød))
+                    } else {
+                        Text("Venter på at verten starter partiet…")
+                            .font(Theme.kroppFont(13))
+                            .foregroundStyle(Theme.blekkSvak)
+                    }
+                    Button("Forlat bordet") { vm.forlat() }
+                        .buttonStyle(BTButtonStyle(farge: Theme.blekkSvak.opacity(0.9), stor: false))
+                }
+            }
+        }
     }
 }

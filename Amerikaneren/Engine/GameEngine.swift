@@ -11,8 +11,9 @@ struct GameRules: Codable, Hashable {
     var maksBud: Int { kortPerSpiller }
 }
 
-/// Fasene i en runde.
-enum GamePhase: Equatable {
+/// Fasene i en runde. String/Codable slik at online-protokollen kan
+/// sende fasen direkte.
+enum GamePhase: String, Codable, Equatable {
     case venterPåStart
     case budrunde
     case velgTrumf        // budvinner velger trumf og ber om et kort (makker)
@@ -21,7 +22,7 @@ enum GamePhase: Equatable {
     case spillFerdig
 }
 
-struct TrickPlay: Hashable, Identifiable {
+struct TrickPlay: Hashable, Identifiable, Codable {
     let seat: Int
     let card: Card
     var id: String { "\(seat)-\(card.id)" }
