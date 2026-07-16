@@ -1,0 +1,230 @@
+import SwiftUI
+
+/// Selve spillebordet: motstandere øverst, stikket i midten, hånden nederst.
+struct GameTableView: View {
+    @EnvironmentObject private var appState: AppState
+    @Environment(\.dismiss) private var dismiss
+    @StateObject var vm: GameViewModel
+    var vedKampanjeSlutt: ((Bool) -> Void)? = nil
+
+    var body: some View {
+        ZStack {
+            Theme.papirMørk.ignoresSafeArea()
+            VStack(spacing: 8) {
+                toppLinje
+                motstanderRad
+                Spacer(minLength: 0)
+                midten
+                Spacer(minLength: 0)
+                bunn
+            }
+            .padding(.horizontal, 12)
+        }
+        .onAppear { if vm.engine.phase == .venterPåStart { vm.startSpill() } }
+        .sheet(isPresented: $vm.visRundeOppsummering) {
+            RundeOppsummeringView(vm: vm)
+                .interactiveDismissDisabled()
+        }
+        .fullScreenCover(isPresented: $vm.visSpillFerdig) {
+            GameOverView(vm: vm) { fullførtOgVunnet in
+                appState.registrerParti(vm.lagMatchRecord())
+                vedKampanjeSlutt?(fullførtOgVunnet)
+                dismiss()
+            }
+        }
+        .navigationBarBackButtonHidden(true)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Gi opp") { dismiss() }
+                    .foregroundStyle(Theme.rød)
+            }
+        }
+    }
+
+    // MARK: - Topp
+
+    private var toppLinje: some View {
+        HStack {
+            if let trumf = vm.engine.trumf {
+                Label {
+                    Text("Trumf: \(trumf.navn)")
+                } icon: {
+                    Text(trumf.rawValue).foregroundStyle(trumf.erRød ? Theme.rød : Theme.blekk)
+                }
+                .font(Theme.kroppFont(15).weight(.bold))
+            } else if vm.engine.erAmerikaner {
+                Text("AMERIKANER – uten trumf!")
+                    .font(Theme.kroppFont(15).weight(.bold))
+                    .foregroundStyle(Theme.rød)
+            } else {
+                Text("Budrunde")
+                    .font(Theme.kroppFont(15).weight(.bold))
+            }
+            Spacer()
+            if let ønsket = vm.engine.ønsketKort, !vm.engine.makkerAvslørt {
+                Text("Etterlyst: \(ønsket.kortSymbol)")
+                    .font(Theme.kroppFont(14))
+                    .foregroundStyle(Theme.blekkSvak)
+            }
+            Text("Stikk \(min(vm.engine.trickNummer + 1, 13))/13")
+                .font(Theme.kroppFont(14))
+                .foregroundStyle(Theme.blekkSvak)
+        }
+        .foregroundStyle(Theme.blekk)
+        .padding(.top, 4)
+        .id(vm.oppdatering)
+    }
+
+    // MARK: - Motstandere
+
+    private var motstanderRad: some View {
+        HStack(spacing: 10) {
+            ForEach(1..<4, id: \.self) { seat in
+                spillerBrikke(seat: seat)
+            }
+        }
+        .id(vm.oppdatering)
+    }
+
+    private func spillerBrikke(seat: Int) -> some View {
+        let motstander = vm.opponent(for: seat)
+        let erAktiv = (vm.engine.phase == .spill && vm.engine.aktivSpiller == seat)
+            || (vm.engine.phase == .budrunde && vm.engine.aktivBudgiver == seat)
+        let erBudgiver = vm.engine.budgiverSeat == seat
+        let erKjentMakker = vm.engine.makkerAvslørt && vm.engine.makkerSeat == seat
+
+        return VStack(spacing: 4) {
+            ZStack(alignment: .topTrailing) {
+                if let motstander {
+                    OpponentPortrett(opponent: motstander, størrelse: 52)
+                }
+                if erBudgiver {
+                    Text("🎯").font(.system(size: 16)).offset(x: 6, y: -6)
+                } else if erKjentMakker {
+                    Text("🤝").font(.system(size: 16)).offset(x: 6, y: -6)
+                }
+            }
+            Text(motstander?.navn ?? "")
+                .font(Theme.kroppFont(11).weight(.semibold))
+                .lineLimit(1)
+            HStack(spacing: 6) {
+                Text("\(vm.poeng(for: seat)) p")
+                    .font(Theme.kroppFont(12).weight(.bold))
+                    .foregroundStyle(Theme.blekk)
+                Text("\(vm.engine.stikkTatt[seat]) stikk")
+                    .font(Theme.kroppFont(11))
+                    .foregroundStyle(Theme.blekkSvak)
+            }
+            if let bud = sisteBud(for: seat), vm.engine.phase == .budrunde || vm.engine.phase == .velgTrumf {
+                Text(bud)
+                    .font(Theme.kroppFont(11).weight(.bold))
+                    .foregroundStyle(bud == "Pass" ? Theme.blekkSvak : Theme.rød)
+            }
+        }
+        .padding(8)
+        .frame(maxWidth: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(.white.opacity(erAktiv ? 0.95 : 0.6))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .strokeBorder(erAktiv ? Theme.grønn : Theme.linje, lineWidth: erAktiv ? 3 : 1.5)
+                )
+        )
+    }
+
+    private func sisteBud(for seat: Int) -> String? {
+        vm.engine.bids.last { $0.seat == seat }.map { $0.action.beskrivelse }
+    }
+
+    // MARK: - Midten
+
+    @ViewBuilder
+    private var midten: some View {
+        VStack(spacing: 12) {
+            if let replikk = vm.sisteReplikk {
+                SnakkeBoble(tekst: "\(replikk.navn): «\(replikk.tekst)»", farge: Theme.gul.opacity(0.35))
+                    .font(Theme.kroppFont(13))
+                    .transition(.scale.combined(with: .opacity))
+            }
+            switch vm.engine.phase {
+            case .budrunde where vm.engine.aktivBudgiver == 0:
+                BiddingView(vm: vm)
+            case .velgTrumf where vm.engine.budgiverSeat == 0:
+                TrumfvalgView(vm: vm)
+            default:
+                stikkVisning
+            }
+        }
+        .id(vm.oppdatering)
+    }
+
+    private var stikkVisning: some View {
+        let stikk = vm.engine.currentTrick.isEmpty && vm.engine.phase == .spill
+            ? vm.engine.sisteStikk
+            : vm.engine.currentTrick
+        return ZStack {
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(Theme.grønn.opacity(0.12))
+                .frame(height: 150)
+            if stikk.isEmpty {
+                Text(vm.engine.phase == .budrunde ? "Venter på bud…" : "Ingen kort på bordet")
+                    .font(Theme.kroppFont(14))
+                    .foregroundStyle(Theme.blekkSvak)
+            }
+            HStack(spacing: 14) {
+                ForEach(stikk) { spill in
+                    VStack(spacing: 4) {
+                        CardView(kort: spill.card, bredde: 54)
+                        Text(vm.navn(for: spill.seat))
+                            .font(Theme.kroppFont(10))
+                            .foregroundStyle(Theme.blekkSvak)
+                            .lineLimit(1)
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: - Bunn (spillerens hånd)
+
+    private var bunn: some View {
+        let lovlige = Set(vm.engine.lovligeKort(for: 0))
+        let minTur = vm.engine.phase == .spill && vm.engine.aktivSpiller == 0
+
+        return VStack(spacing: 6) {
+            HStack {
+                Text("\(vm.spillerNavn) – \(vm.poeng(for: 0)) poeng, \(vm.engine.stikkTatt[0]) stikk")
+                    .font(Theme.kroppFont(14).weight(.bold))
+                    .foregroundStyle(Theme.blekk)
+                Spacer()
+                if minTur {
+                    Text("Din tur!")
+                        .font(Theme.kroppFont(13).weight(.heavy))
+                        .foregroundStyle(Theme.grønn)
+                }
+            }
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: -18) {
+                    ForEach(vm.engine.hands.first ?? []) { kort in
+                        Button {
+                            vm.menneskeSpiller(kort)
+                        } label: {
+                            CardView(
+                                kort: kort, bredde: 62,
+                                valgbar: minTur && lovlige.contains(kort),
+                                dimmet: minTur && !lovlige.contains(kort)
+                            )
+                        }
+                        .disabled(!minTur || !lovlige.contains(kort))
+                        .offset(y: minTur && lovlige.contains(kort) ? -8 : 0)
+                    }
+                }
+                .padding(.vertical, 12)
+                .padding(.horizontal, 8)
+            }
+        }
+        .padding(.bottom, 6)
+        .id(vm.oppdatering)
+    }
+}
