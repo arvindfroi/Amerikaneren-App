@@ -55,14 +55,21 @@ struct AIPlayer {
 
         // Makkeren bidrar typisk med noen stikk.
         var estimat = råEstimat + 2.0
-        estimat += (personality.aggresjon - 0.5) * 2.5
-        estimat += Double.random(in: -difficulty.budStøy...difficulty.budStøy)
+        if !difficulty.spillerPerfekt {
+            // Personligheten farger budet – på President-nivå bys det rent.
+            estimat += (personality.aggresjon - 0.5) * 2.5
+            estimat += Double.random(in: -difficulty.budStøy...difficulty.budStøy)
+        }
 
-        // Amerikaner-drøm: nesten alle stikk selv, uten trumf.
+        // Amerikaner-melding: nesten alle stikk selv, uten trumf.
         let solostikk = Self.estimerStikk(hånd: hånd, trumf: Self.besteTrumf(hånd: hånd).suit)
-        if solostikk >= 11.5, Double.random(in: 0...1) < personality.storhetsdrøm,
-           lovlige.contains(.amerikaner) {
-            return .amerikaner
+        if lovlige.contains(.amerikaner) {
+            if difficulty.spillerPerfekt {
+                // Perfekt spiller melder bare når hånden faktisk bærer det.
+                if solostikk >= 12.5 { return .amerikaner }
+            } else if solostikk >= 11.5, Double.random(in: 0...1) < personality.storhetsdrøm {
+                return .amerikaner
+            }
         }
 
         let mittBud = Int(estimat.rounded())
@@ -70,8 +77,10 @@ struct AIPlayer {
             if case .bud(let n) = action { return n }
             return nil
         }
-        // Bløff: press budet opp ett hakk uten dekning.
-        let bløffer = Double.random(in: 0...1) < personality.bløff * 0.5
+        // Man bløffer sjelden i Amerikaner: bare de frekkeste presser
+        // budet ett hakk over dekning, og bare unntaksvis.
+        let bløffer = !difficulty.spillerPerfekt
+            && Double.random(in: 0...1) < personality.bløff * 0.15
         let grense = bløffer ? mittBud + 1 : mittBud
         if let laveste = tallbud.min(), laveste <= grense {
             return .bud(laveste)
@@ -120,15 +129,18 @@ struct AIPlayer {
             GameEngine.vinnerAvStikk(stikk + [TrickPlay(seat: seat, card: kort)], trumf: trumf) == seat
         }
 
-        // Makkeren har stikket: legg lavest, med mindre lojaliteten er lav
-        // og vi kan sikre med et stort kort selv.
-        if makkerVinner, stikk.count == engine.rules.antallSpillere - 1 || personality.lojalitet > 0.35 {
+        // Makkeren har stikket: legg lavest. Bare illojale spillere (og
+        // aldri en perfekt spiller som er sistemann) overstyrer dette.
+        let lojal = difficulty.spillerPerfekt || personality.lojalitet > 0.35
+        if makkerVinner, stikk.count == engine.rules.antallSpillere - 1 || lojal {
             return lavest(lovlige, trumf: trumf)
         }
 
         if let billigsteVinner = vinnende.min(by: { kortStyrke($0, trumf: trumf) < kortStyrke($1, trumf: trumf) }) {
-            // Risikovillige sparer storkortene når stikket er lite verdt tidlig.
-            if personality.risiko > 0.7, engine.trickNummer < 3,
+            // Risikovillige sparer storkortene tidlig – perfekte spillere
+            // tar alltid stikket billigst mulig i stedet.
+            if !difficulty.spillerPerfekt,
+               personality.risiko > 0.7, engine.trickNummer < 3,
                billigsteVinner.rank == .ace, Bool.random() {
                 return lavest(lovlige, trumf: trumf)
             }
@@ -141,11 +153,18 @@ struct AIPlayer {
         let trumf = engine.trumf
         let spilte = Set(engine.spilteKort)
 
-        // Budgiver: trekk ut trumfene til motstanderne først.
+        // Budgiver: trekk ut trumfene til motstanderne først. Hvor lenge
+        // laget maser på trumf styres av risikoviljen; perfekte spillere
+        // trekker trumf så lenge det lønner seg.
         if seat == engine.budgiverSeat || erPåMittLag(engine.budgiverSeat ?? -1, engine: engine) {
-            if let trumf, engine.trickNummer < 4 {
+            let trumfRunder = difficulty.spillerPerfekt ? 5
+                : personality.risiko > 0.6 ? 5
+                : personality.risiko > 0.3 ? 4 : 3
+            if let trumf, engine.trickNummer < trumfRunder {
                 let mineTrumf = lovlige.filter { $0.suit == trumf }
-                if let høyeste = mineTrumf.max(by: { $0.rank < $1.rank }),
+                let trumfIgjenUte = 13 - spilte.filter { $0.suit == trumf }.count - mineTrumf.count
+                if trumfIgjenUte > 0,
+                   let høyeste = mineTrumf.max(by: { $0.rank < $1.rank }),
                    mineTrumf.count >= 2 || høyeste.rank >= .king {
                     return høyeste
                 }

@@ -19,7 +19,7 @@ struct OfflineOppsettView: View {
                                 .font(Theme.kroppFont(17).weight(.bold))
                                 .foregroundStyle(Theme.blekk)
                             Picker("Vanskelighetsgrad", selection: $difficulty) {
-                                ForEach([AIDifficulty.lett, .middels, .vanskelig]) { grad in
+                                ForEach([AIDifficulty.lett, .middels, .vanskelig, .president]) { grad in
                                     Text(grad.rawValue).tag(grad)
                                 }
                             }

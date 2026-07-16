@@ -88,7 +88,13 @@ enum CampaignData {
                     kravMinsteBud: 8
                 ),
                 CampaignStage(
-                    id: "g3", hovedmotstanderId: "eisenhower",
+                    id: "g3", hovedmotstanderId: "trump",
+                    scenarioTittel: "Kunsten å by",
+                    scenarioTekst: "Trumfmesteren byr enormt og melder Amerikaner i annenhver runde. Han starter med 10 poeng han sier han har bygget helt selv.",
+                    motstanderStartPoeng: 10
+                ),
+                CampaignStage(
+                    id: "g4", hovedmotstanderId: "eisenhower",
                     scenarioTittel: "D-dagen",
                     scenarioTekst: "Generalen har planlagt alt og starter med 12 poeng. Maratonpartiet går til 65.",
                     motstanderStartPoeng: 12, målPoeng: 65

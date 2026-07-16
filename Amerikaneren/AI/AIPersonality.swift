@@ -33,18 +33,25 @@ enum AIDifficulty: String, CaseIterable, Codable, Identifiable {
         case .lett: return "Byr vilt og glemmer hvilke kort som er spilt."
         case .middels: return "Solid motstand med noen feilskjær."
         case .vanskelig: return "Teller kort og byr presist."
-        case .president: return "Nådeløs. Feiler aldri med vilje."
+        case .president: return "Perfekt spill. Personligheten skrus av – bare ren kortfornuft."
         }
     }
+
+    /// På President-nivå spiller alle perfekt: ingen budstøy, ingen
+    /// personlighetsjusteringer, alltid beste kort.
+    var spillerPerfekt: Bool { self == .president }
 }
 
 /// Civilization-inspirerte lederegenskaper (0...1) som farger AI-ens stil.
+/// Personligheten styrer først og fremst budgivningen og trumfbruken –
+/// man bløffer lite i Amerikaner, så bløff-trekket har bevisst liten effekt.
+/// På President-vanskelighetsgrad ignoreres personligheten helt.
 struct AIPersonality: Codable, Hashable {
     /// Hvor aggressivt det bys – høyt = byr over evne.
     var aggresjon: Double
-    /// Vilje til å ta sjanser i spillet (trumfe tidlig, spare høye kort).
+    /// Vilje til å ta sjanser: trekker trumf lenger og trumfer tidligere.
     var risiko: Double
-    /// Hvor ofte den byr for å presse andre opp, uten å mene det.
+    /// Sjelden brukt: en og annen frekk overbydning. Liten effekt.
     var bløff: Double
     /// Hvor godt den beskytter makkeren sin.
     var lojalitet: Double

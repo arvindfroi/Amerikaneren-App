@@ -148,6 +148,20 @@ enum OpponentRoster {
             tapReplikk: "Vel... der har du meg igjen."
         ),
         Opponent(
+            id: "trump",
+            navn: "Donald Trump",
+            tittel: "Trumfmesteren",
+            emoji: "🧢",
+            farge: "C9A227",
+            hjemsted: "Mar-a-Lago, Florida",
+            agenda: "Byr enormt og melder Amerikaner så fort hånden ser bra ut. Hvert stikk han tar er «det største stikket i historien».",
+            difficulty: .vanskelig,
+            personality: AIPersonality(aggresjon: 1.0, risiko: 0.75, bløff: 0.5, lojalitet: 0.3, storhetsdrøm: 1.0),
+            introReplikk: "Jeg har de beste kortene. Alle sier det. Kanskje de beste kortene noensinne.",
+            seierReplikk: "Vi vinner så mye at folk blir lei av å vinne. Ikke jeg.",
+            tapReplikk: "Rigget! Kortstokken var rigget! Jeg krever omtelling av stikkene!"
+        ),
+        Opponent(
             id: "eisenhower",
             navn: "Dwight D. Eisenhower",
             tittel: "Generalen",
