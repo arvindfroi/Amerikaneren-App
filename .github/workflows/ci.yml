@@ -5,18 +5,40 @@ on:
     branches: ["**"]
   pull_request:
 
+env:
+  HOMEBREW_NO_AUTO_UPDATE: "1"
+
 jobs:
   build-and-test:
     name: Bygg, test og lag simulatorbygg
     runs-on: macos-14
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Installer XcodeGen
         run: brew install xcodegen
 
       - name: Generer Xcode-prosjekt
-        run: xcodegen generate
+        run: |
+          xcodegen generate
+          xcodebuild -list -project Amerikaneren.xcodeproj
+
+      - name: Vis byggemiljø og velg simulator
+        id: sim
+        run: |
+          xcodebuild -version
+          xcrun simctl list devices available | sed -n '1,30p'
+          # Velg første tilgjengelige iPhone-simulator dynamisk, i stedet
+          # for å hardkode et modellnavn som kan mangle på runneren.
+          DEVICE=$(xcrun simctl list devices available \
+            | grep -E "iPhone" | head -1 \
+            | sed -E 's/^ *(.+) \([0-9A-F-]+\) \(.*/\1/')
+          if [ -z "$DEVICE" ]; then
+            echo "Fant ingen iPhone-simulator!" >&2
+            exit 1
+          fi
+          echo "Valgt simulator: $DEVICE"
+          echo "device=$DEVICE" >> "$GITHUB_OUTPUT"
 
       - name: Bygg og kjør tester
         run: |
@@ -24,12 +46,10 @@ jobs:
           xcodebuild test \
             -project Amerikaneren.xcodeproj \
             -scheme Amerikaneren \
-            -destination 'platform=iOS Simulator,name=iPhone 15' \
+            -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.device }}" \
             CODE_SIGNING_ALLOWED=NO \
-            | tail -100
+            2>&1 | tee test.log | tail -60
 
-      # Simulatorbygg som kan spilles i nettleseren via appetize.io –
-      # praktisk når man utvikler uten Mac.
       - name: Bygg simulator-app (Release)
         run: |
           set -o pipefail
@@ -40,7 +60,7 @@ jobs:
             -destination 'generic/platform=iOS Simulator' \
             -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO \
-            | tail -30
+            2>&1 | tee release.log | tail -30
 
       - name: Pakk simulatorbygget
         run: |
@@ -76,9 +96,41 @@ jobs:
             -F "file=@Amerikaneren-simulator.zip" \
             -F "platform=ios" \
             "$URL")
-          echo "Appetize-svar: $SVAR"
           NOKKEL=$(echo "$SVAR" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("publicKey",""))')
           if [ -n "$NOKKEL" ]; then
             echo "### 🎮 Spill appen i nettleseren" >> "$GITHUB_STEP_SUMMARY"
             echo "https://appetize.io/app/$NOKKEL" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "(Sett secret APPETIZE_PUBLIC_KEY til \`$NOKKEL\` for å beholde samme lenke.)" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Opplastingen ga uventet svar: $SVAR" >&2
           fi
+
+      # Ved feil: legg de siste logglinjene rett i jobbsammendraget, så
+      # feilen kan leses (og limes inn) uten å grave i rålogger.
+      - name: Feillogg til sammendraget
+        if: failure()
+        run: |
+          {
+            echo "### ❌ Bygget feilet – siste logglinjer"
+            echo '```'
+            for f in test.log release.log; do
+              if [ -f "$f" ]; then
+                echo "== $f =="
+                grep -E "error:|fatal|failed|Testing failed|BUILD FAILED" "$f" | head -40 || true
+                tail -80 "$f"
+              fi
+            done
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Last opp fulle logger ved feil
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: byggelogger
+          path: |
+            test.log
+            release.log
+          if-no-files-found: ignore
+          retention-days: 7
