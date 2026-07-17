@@ -1,5 +1,10 @@
 # Designsystem og UX-prinsipper
 
+> **Status: UTKAST.** Retning for identitet, navigasjon og interaksjon er
+> ikke besluttet ennå – se [BESLUTNINGER.md](BESLUTNINGER.md) for de åpne
+> valgene. Tokens-arkitekturen under ligger fast; verdiene kan byttes
+> billig når retningen velges.
+
 Alle tokens ligger i `Theme/DesignSystem.swift` (`DS`). Eldre views bruker
 `Theme`-fasaden, som peker på de samme tokens – nye views skal bruke `DS`
 direkte.
