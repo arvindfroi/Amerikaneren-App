@@ -44,6 +44,9 @@ struct InnstillingerView: View {
                         Toggle("Haptikk (vibrasjon)", isOn: $appState.haptikkPå)
                             .font(Theme.kroppFont(16))
                             .foregroundStyle(Theme.blekk)
+                        Toggle("Store kort", isOn: $appState.storeKort)
+                            .font(Theme.kroppFont(16))
+                            .foregroundStyle(Theme.blekk)
                     }
                 }
 

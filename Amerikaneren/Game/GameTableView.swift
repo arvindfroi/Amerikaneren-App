@@ -10,15 +10,24 @@ struct GameTableView: View {
     var body: some View {
         ZStack {
             Theme.papirMørk.ignoresSafeArea()
-            VStack(spacing: 8) {
-                toppLinje
+            VStack(spacing: DS.Avstand.s) {
                 motstanderRad
+                toppLinje
                 Spacer(minLength: 0)
                 midten
                 Spacer(minLength: 0)
+                // Tommelsonen: alle handlinger nederst, innen rekkevidde.
+                if vm.engine.phase == .budrunde && vm.engine.aktivBudgiver == 0 {
+                    BiddingView(vm: vm)
+                        .transition(DS.Bevegelse.panelInn)
+                } else if vm.engine.phase == .velgTrumf && vm.engine.budgiverSeat == 0 {
+                    TrumfvalgView(vm: vm)
+                        .transition(DS.Bevegelse.panelInn)
+                }
                 bunn
             }
-            .padding(.horizontal, 12)
+            .padding(.horizontal, DS.Avstand.m)
+            .animation(DS.Bevegelse.standard, value: vm.oppdatering)
         }
         .onAppear { if vm.engine.phase == .venterPåStart { vm.startSpill() } }
         .sheet(isPresented: $vm.visRundeOppsummering) {
@@ -159,20 +168,13 @@ struct GameTableView: View {
 
     @ViewBuilder
     private var midten: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: DS.Avstand.m) {
             if let replikk = vm.sisteReplikk {
                 SnakkeBoble(tekst: "\(replikk.navn): «\(replikk.tekst)»", farge: Theme.gul.opacity(0.35))
-                    .font(Theme.kroppFont(13))
+                    .font(DS.Tekst.etikett)
                     .transition(.scale.combined(with: .opacity))
             }
-            switch vm.engine.phase {
-            case .budrunde where vm.engine.aktivBudgiver == 0:
-                BiddingView(vm: vm)
-            case .velgTrumf where vm.engine.budgiverSeat == 0:
-                TrumfvalgView(vm: vm)
-            default:
-                stikkVisning
-            }
+            stikkVisning
         }
         .id(vm.oppdatering)
     }
@@ -223,42 +225,14 @@ struct GameTableView: View {
     // MARK: - Bunn (spillerens hånd)
 
     private var bunn: some View {
-        let lovlige = Set(vm.engine.lovligeKort(for: 0))
-        let minTur = vm.engine.phase == .spill && vm.engine.aktivSpiller == 0
-
-        return VStack(spacing: 6) {
-            HStack {
-                Text("\(vm.spillerNavn) – \(vm.poeng(for: 0)) poeng, \(vm.engine.stikkTatt[0]) stikk")
-                    .font(Theme.kroppFont(14).weight(.bold))
-                    .foregroundStyle(Theme.blekk)
-                Spacer()
-                if minTur {
-                    Text("Din tur!")
-                        .font(Theme.kroppFont(13).weight(.heavy))
-                        .foregroundStyle(Theme.grønn)
-                }
-            }
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: -18) {
-                    ForEach(vm.engine.hands.first ?? []) { kort in
-                        Button {
-                            vm.menneskeSpiller(kort)
-                        } label: {
-                            CardView(
-                                kort: kort, bredde: 62,
-                                valgbar: minTur && lovlige.contains(kort),
-                                dimmet: minTur && !lovlige.contains(kort)
-                            )
-                        }
-                        .disabled(!minTur || !lovlige.contains(kort))
-                        .offset(y: minTur && lovlige.contains(kort) ? -8 : 0)
-                    }
-                }
-                .padding(.vertical, 12)
-                .padding(.horizontal, 8)
-            }
+        HandActionArea(
+            kort: vm.engine.hands.first ?? [],
+            lovlige: Set(vm.engine.lovligeKort(for: 0)),
+            minTur: vm.engine.phase == .spill && vm.engine.aktivSpiller == 0,
+            tittel: "\(vm.spillerNavn) – \(vm.poeng(for: 0)) poeng, \(vm.engine.stikkTatt[0]) stikk",
+            storeKort: appState.storeKort
+        ) { kort in
+            vm.menneskeSpiller(kort)
         }
-        .padding(.bottom, 6)
-        .id(vm.oppdatering)
     }
 }

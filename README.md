@@ -79,6 +79,7 @@ App Store Connect (entitlements-filen ligger klar).
 
 ## Dokumentasjon
 
+- [docs/DESIGN.md](docs/DESIGN.md) – designsystemet (tokens, komponenter, motion) og UX-prinsippene (bestemor-testen, tommelsonen)
 - [docs/ARKITEKTUR.md](docs/ARKITEKTUR.md) – lagdeling, dataflyt, persistens og designvalg
 - [docs/REGLER.md](docs/REGLER.md) – reglene slik de er implementert, med kilder og bevisste avvik
 - [docs/AI.md](docs/AI.md) – hvordan CPU-ene vurderer hånden, byr og spiller, per vanskelighetsgrad

@@ -1,5 +1,21 @@
 # Utviklingslogg
 
+## v0.6 – Designsystem og tommelsone-UX
+
+- **Designsystem (`DS`)**: tokens for farge, typografi (Dynamic
+  Type-skalert), avstand, radius, trykkflate-mål og tre motion-kurver.
+  `Theme` er nå en fasade over tokens. Dokumentert i docs/DESIGN.md.
+- **Tommelsone-ergonomi**: bud- og trumfpanelene flyttet fra midten av
+  skjermen ned til rett over hånden – all interaksjon i et helt parti
+  skjer i nederste tredjedel (portrett først).
+- **Bestemor-vennlig kortspilling**: nytt delt `HandActionArea` for
+  offline og online – trykk for å velge (kortet løftes), trykk igjen,
+  dra opp ELLER bruk den store «Spill kortet»-knappen. To-trinns valg
+  hindrer uhell; hver gest har knapp-ekvivalent; accessibility-labels
+  på kortene.
+- «Store kort»-innstilling, større minimum trykkflater (48/54 pt) og
+  monospaced sifre i poengvisninger.
+
 ## v0.5 – Ranked, haptikk/lyd og spillflyt
 
 - **Ranked-modus med Elo:** divisjoner tematisert som politisk karriere

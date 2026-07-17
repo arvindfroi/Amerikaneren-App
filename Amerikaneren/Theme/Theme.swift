@@ -4,15 +4,17 @@ import SwiftUI
 /// kremhvit «papir»-bakgrunn, mørkeblått blekk, rød aksent,
 /// runde, håndskrift-aktige former og store vennlige knapper.
 enum Theme {
-    static let papir = Color(hex: "F7F1E1")
-    static let papirMørk = Color(hex: "EFE6CE")
-    static let blekk = Color(hex: "1D3557")
-    static let blekkSvak = Color(hex: "1D3557").opacity(0.55)
-    static let rød = Color(hex: "E63946")
-    static let blå = Color(hex: "457B9D")
-    static let grønn = Color(hex: "2A9D8F")
-    static let gul = Color(hex: "E9C46A")
-    static let linje = Color(hex: "1D3557").opacity(0.14)
+    // Fasade over designsystemets tokens (DS.Farge) – behold navnene her
+    // så eksisterende views slipper å endres; nye views bør bruke DS direkte.
+    static let papir = DS.Farge.papir
+    static let papirMørk = DS.Farge.papirMørk
+    static let blekk = DS.Farge.blekk
+    static let blekkSvak = DS.Farge.blekkSvak
+    static let rød = DS.Farge.rød
+    static let blå = DS.Farge.blå
+    static let grønn = DS.Farge.grønn
+    static let gul = DS.Farge.gul
+    static let linje = DS.Farge.linje
 
     static func tittelFont(_ størrelse: CGFloat = 28) -> Font {
         .system(size: størrelse, weight: .heavy, design: .rounded)
@@ -46,18 +48,20 @@ struct BTButtonStyle: ButtonStyle {
         configuration.label
             .font(Theme.kroppFont(stor ? 20 : 16).weight(.bold))
             .foregroundStyle(.white)
-            .padding(.vertical, stor ? 16 : 10)
+            .padding(.vertical, stor ? 14 : 10)
             .padding(.horizontal, stor ? 24 : 16)
             .frame(maxWidth: stor ? .infinity : nil)
+            .frame(minHeight: stor ? DS.Mål.knappHøyde : DS.Mål.minTrykk)
             .background(
-                RoundedRectangle(cornerRadius: stor ? 22 : 14, style: .continuous)
+                RoundedRectangle(cornerRadius: stor ? DS.Radius.l : DS.Radius.m, style: .continuous)
                     .fill(farge)
                     .shadow(color: .black.opacity(configuration.isPressed ? 0.05 : 0.18),
                             radius: configuration.isPressed ? 1 : 4,
                             y: configuration.isPressed ? 1 : 4)
             )
+            .contentShape(RoundedRectangle(cornerRadius: stor ? DS.Radius.l : DS.Radius.m))
             .scaleEffect(configuration.isPressed ? 0.97 : 1)
-            .animation(.spring(response: 0.25, dampingFraction: 0.7), value: configuration.isPressed)
+            .animation(DS.Bevegelse.rask, value: configuration.isPressed)
     }
 }
 

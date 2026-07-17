@@ -22,6 +22,10 @@ final class AppState: ObservableObject {
     @Published var haptikkPå: Bool {
         didSet { UserDefaults.standard.set(haptikkPå, forKey: "haptikkPå") }
     }
+    /// Større kort i hånden – lettere å treffe og lese.
+    @Published var storeKort: Bool {
+        didSet { UserDefaults.standard.set(storeKort, forKey: "storeKort") }
+    }
 
     // Ranked / Elo
     @Published private(set) var eloRating: Int {
@@ -37,6 +41,7 @@ final class AppState: ObservableObject {
         spillerNavn = UserDefaults.standard.string(forKey: "spillerNavn") ?? "Du"
         lydPå = UserDefaults.standard.object(forKey: "lydPå") as? Bool ?? true
         haptikkPå = UserDefaults.standard.object(forKey: "haptikkPå") as? Bool ?? true
+        storeKort = UserDefaults.standard.object(forKey: "storeKort") as? Bool ?? false
         eloRating = UserDefaults.standard.object(forKey: "eloRating") as? Int ?? EloCalculator.startRating
         partier = les([MatchRecord].self, fra: "partier.json") ?? []
         kampanje = les(CampaignProgress.self, fra: "kampanje.json") ?? CampaignProgress()

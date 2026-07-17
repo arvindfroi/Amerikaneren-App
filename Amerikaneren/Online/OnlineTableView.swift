@@ -52,19 +52,28 @@ struct OnlineTableView: View {
     // MARK: - Bordet
 
     private func bord(_ snap: OnlineSnapshot) -> some View {
-        VStack(spacing: 8) {
-            toppLinje(snap)
+        VStack(spacing: DS.Avstand.s) {
             HStack(spacing: 10) {
                 ForEach(andreSeter, id: \.self) { sete in
                     brikke(sete: sete, snap: snap)
                 }
             }
+            toppLinje(snap)
             Spacer(minLength: 0)
             midten(snap)
             Spacer(minLength: 0)
+            // Tommelsonen: bud- og trumfpanelet legger seg rett over hånden.
+            if snap.phase == .budrunde, snap.aktivSeat == vm.mittSete {
+                budPanel(snap)
+                    .transition(DS.Bevegelse.panelInn)
+            } else if snap.phase == .velgTrumf, snap.budgiverSeat == vm.mittSete {
+                trumfPanel(snap)
+                    .transition(DS.Bevegelse.panelInn)
+            }
             bunn(snap)
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, DS.Avstand.m)
+        .animation(DS.Bevegelse.standard, value: snap.aktivSeat)
         .overlay {
             if snap.phase == .rundeFerdig || snap.phase == .spillFerdig {
                 sluttPanel(snap)
@@ -154,13 +163,7 @@ struct OnlineTableView: View {
 
     @ViewBuilder
     private func midten(_ snap: OnlineSnapshot) -> some View {
-        if snap.phase == .budrunde, snap.aktivSeat == vm.mittSete {
-            budPanel(snap)
-        } else if snap.phase == .velgTrumf, snap.budgiverSeat == vm.mittSete {
-            trumfPanel(snap)
-        } else {
-            stikkVisning(snap)
-        }
+        stikkVisning(snap)
     }
 
     private func stikkVisning(_ snap: OnlineSnapshot) -> some View {
@@ -299,42 +302,15 @@ struct OnlineTableView: View {
     // MARK: - Hånden
 
     private func bunn(_ snap: OnlineSnapshot) -> some View {
-        let lovlige = Set(snap.lovligeKort)
-        let minTur = snap.phase == .spill && snap.aktivSeat == vm.mittSete
-
-        return VStack(spacing: 6) {
-            HStack {
-                Text("\(vm.navn(for: vm.mittSete)) – \(snap.scores[vm.mittSete]) poeng, \(snap.stikkTatt[vm.mittSete]) stikk")
-                    .font(Theme.kroppFont(14).weight(.bold))
-                    .foregroundStyle(Theme.blekk)
-                Spacer()
-                if minTur {
-                    Text("Din tur!")
-                        .font(Theme.kroppFont(13).weight(.heavy))
-                        .foregroundStyle(Theme.grønn)
-                }
-            }
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: -18) {
-                    ForEach(snap.dinHånd) { kort in
-                        Button {
-                            vm.spiller(kort)
-                        } label: {
-                            CardView(
-                                kort: kort, bredde: 62,
-                                valgbar: minTur && lovlige.contains(kort),
-                                dimmet: minTur && !lovlige.contains(kort)
-                            )
-                        }
-                        .disabled(!minTur || !lovlige.contains(kort))
-                        .offset(y: minTur && lovlige.contains(kort) ? -8 : 0)
-                    }
-                }
-                .padding(.vertical, 12)
-                .padding(.horizontal, 8)
-            }
+        HandActionArea(
+            kort: snap.dinHånd,
+            lovlige: Set(snap.lovligeKort),
+            minTur: snap.phase == .spill && snap.aktivSeat == vm.mittSete,
+            tittel: "\(vm.navn(for: vm.mittSete)) – \(snap.scores[vm.mittSete]) poeng, \(snap.stikkTatt[vm.mittSete]) stikk",
+            storeKort: appState.storeKort
+        ) { kort in
+            vm.spiller(kort)
         }
-        .padding(.bottom, 6)
     }
 
     // MARK: - Runde-/partislutt
