@@ -41,6 +41,25 @@ Basert på [Wikipedia](https://no.wikipedia.org/wiki/Amerikaner_(kortspill)) og
 🥇 John F. Kennedy · Ronald Reagan · Donald Trump · Dwight D. Eisenhower
 🏆 **Onkel Sam** – sluttbossen som spiller feilfritt
 
+## Teste uten Mac (Windows/Linux)
+
+CI-en bygger appen ved hver push og legger ut et **simulatorbygg** som
+artifact (Actions-fanen → siste kjøring → `Amerikaneren-simulator`).
+
+To måter å spille det i nettleseren via [appetize.io](https://appetize.io):
+
+1. **Manuelt:** last ned artifactet og last det opp på
+   [appetize.io/upload](https://appetize.io/upload) (gratis konto holder).
+2. **Automatisk:** opprett en Appetize-konto, hent API-nøkkelen, og legg
+   den inn som GitHub-secret `APPETIZE_API_TOKEN`
+   (Settings → Secrets and variables → Actions). CI laster da opp hvert
+   bygg og skriver spillelenken i jobbsammendraget. Legg i tillegg inn
+   `APPETIZE_PUBLIC_KEY` (fra første opplasting) for å beholde samme
+   lenke hver gang.
+
+Merk: Game Center (online/ranked) virker ikke i simulator – det krever
+ekte enhet via TestFlight og App Store Connect-oppsett.
+
 ## Bygg og kjør
 
 Prosjektet bruker [XcodeGen](https://github.com/yonaskolb/XcodeGen):

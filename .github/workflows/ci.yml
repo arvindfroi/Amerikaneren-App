@@ -7,7 +7,7 @@ on:
 
 jobs:
   build-and-test:
-    name: Bygg og test (iOS-simulator)
+    name: Bygg, test og lag simulatorbygg
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
@@ -27,3 +27,58 @@ jobs:
             -destination 'platform=iOS Simulator,name=iPhone 15' \
             CODE_SIGNING_ALLOWED=NO \
             | tail -100
+
+      # Simulatorbygg som kan spilles i nettleseren via appetize.io –
+      # praktisk når man utvikler uten Mac.
+      - name: Bygg simulator-app (Release)
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project Amerikaneren.xcodeproj \
+            -scheme Amerikaneren \
+            -configuration Release \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            | tail -30
+
+      - name: Pakk simulatorbygget
+        run: |
+          cd build/Build/Products/Release-iphonesimulator
+          zip -r "$GITHUB_WORKSPACE/Amerikaneren-simulator.zip" Amerikaneren.app
+
+      - name: Last opp simulatorbygg som artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Amerikaneren-simulator
+          path: Amerikaneren-simulator.zip
+          retention-days: 14
+
+      # Automatisk opplasting til Appetize hvis APPETIZE_API_TOKEN-secret
+      # er satt i repoet. Sett også APPETIZE_PUBLIC_KEY for å oppdatere
+      # samme app-lenke hver gang i stedet for å lage en ny.
+      - name: Last opp til Appetize (valgfritt)
+        env:
+          APPETIZE_API_TOKEN: ${{ secrets.APPETIZE_API_TOKEN }}
+          APPETIZE_PUBLIC_KEY: ${{ secrets.APPETIZE_PUBLIC_KEY }}
+        run: |
+          if [ -z "$APPETIZE_API_TOKEN" ]; then
+            echo "APPETIZE_API_TOKEN ikke satt – hopper over opplasting."
+            echo "Last ned artifactet og last opp manuelt på https://appetize.io/upload"
+            exit 0
+          fi
+          if [ -n "$APPETIZE_PUBLIC_KEY" ]; then
+            URL="https://api.appetize.io/v2/apps/$APPETIZE_PUBLIC_KEY"
+          else
+            URL="https://api.appetize.io/v2/apps"
+          fi
+          SVAR=$(curl -sf -u "$APPETIZE_API_TOKEN:" \
+            -F "file=@Amerikaneren-simulator.zip" \
+            -F "platform=ios" \
+            "$URL")
+          echo "Appetize-svar: $SVAR"
+          NOKKEL=$(echo "$SVAR" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("publicKey",""))')
+          if [ -n "$NOKKEL" ]; then
+            echo "### 🎮 Spill appen i nettleseren" >> "$GITHUB_STEP_SUMMARY"
+            echo "https://appetize.io/app/$NOKKEL" >> "$GITHUB_STEP_SUMMARY"
+          fi
