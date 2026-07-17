@@ -97,10 +97,12 @@ jobs:
             echo "Last ned artifactet og last opp manuelt på https://appetize.io/upload"
             exit 0
           fi
+          # v1-endepunktet tar direkte filopplasting (multipart);
+          # v2 aksepterer kun JSON med en offentlig URL.
           if [ -n "$APPETIZE_PUBLIC_KEY" ]; then
-            URL="https://api.appetize.io/v2/apps/$APPETIZE_PUBLIC_KEY"
+            URL="https://api.appetize.io/v1/apps/$APPETIZE_PUBLIC_KEY"
           else
-            URL="https://api.appetize.io/v2/apps"
+            URL="https://api.appetize.io/v1/apps"
           fi
           # Robust opplasting: retries og HTTP/1.1 (multipart over store
           # filer kan gi tilkoblingsfeil), og et mislykket forsøk skal
