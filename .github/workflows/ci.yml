@@ -11,9 +11,19 @@ env:
 jobs:
   build-and-test:
     name: Bygg, test og lag simulatorbygg
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v5
+
+      # Nyeste XcodeGen genererer prosjektformat 77, som krever Xcode 16.3+.
+      # Velg nyeste installerte Xcode eksplisitt så gamle standardversjoner
+      # på runneren ikke feiler med "future Xcode project file format".
+      - name: Velg nyeste Xcode
+        run: |
+          NYESTE=$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)
+          echo "Velger $NYESTE"
+          sudo xcode-select -s "$NYESTE"
+          xcodebuild -version
 
       - name: Installer XcodeGen
         run: brew install xcodegen
