@@ -114,8 +114,9 @@ jobs:
             -F "platform=ios" \
             "$URL") || HTTP="000"
           echo "HTTP-status: $HTTP"
-          cat appetize-svar.json 2>/dev/null || true
+          # Ikke skriv hele svaret til loggen – det inneholder privateKey.
           NOKKEL=$(python3 -c 'import json; print(json.load(open("appetize-svar.json")).get("publicKey",""))' 2>/dev/null || true)
+          echo "publicKey: ${NOKKEL:-<mangler – HTTP $HTTP>}"
           if [ -n "$NOKKEL" ]; then
             echo "### 🎮 Spill appen i nettleseren" >> "$GITHUB_STEP_SUMMARY"
             echo "https://appetize.io/app/$NOKKEL" >> "$GITHUB_STEP_SUMMARY"
