@@ -161,3 +161,41 @@ Benchmarks (release-bygg, faste frø) med sete 0 mot tre
 Dobbeltdummy-løseren er i tillegg verifisert identisk med en
 brute-force-minimax på 800 tilfeldige stillinger, og hele runder
 fuzz-testes for lovlighet med blandede vanskelighetsgrader.
+
+## NevroHjerne – det nevrale nettet
+
+Tre små MLP-er i ren Swift (`AI/NevroNett.swift`, ~100k parametre totalt,
+inferens på mikrosekunder uten Core ML): et **budhode** (hva skal meldes),
+et **byttehode** (hvilke 4 kort vrakes) og et **spillhode** (hvilket kort
+legges). Trekkuttrekket bruker kun lovlig informasjon – egen hånd, spilte
+kort, meldinger, avslørt makker, poengstilling – kodet relativt til eget
+sete. Vektene ligger innebygd i `AI/NevroVekter.swift` og regenereres av
+treningsharnessen.
+
+### Trening
+
+1. **Destillering**: 800 hele selvspill-partier med MesterAI i alle seter
+   ga ~109 000 budbeslutninger, ~13 000 vrak og ~496 000 kortvalg.
+   Nettene trenes veiledet med holdt-ut testsett (5 %): 91,6 % budtreff,
+   77 % vraktreff og 62 % kortvalgstreff mot læreren.
+2. **Forsterkningslæring**: selvspill-partier til 100 poeng der eneste
+   belønning er å vinne partiet, med verdihode som baseline,
+   destillasjonsanker (KL mot læreren) og deterministisk
+   fremdriftsmåling mot frosne referansenett (kopispill-prinsippet fra
+   turneringsbridge). RL-nettet slo referansen sin med god margin i
+   selvspill (0,70 mot 0,31 poeng/runde på identiske kortstokker).
+3. **Sluttport på ekte spill**: før eksport måles kandidatene på tusenvis
+   av ferske, tilfeldige runder mot andre motstandertyper. Porten avslørte
+   at RL-gevinsten ikke overførte fra selvspill (4,73 mot 4,82 for det
+   destillerte nettet over 2 000 runder), så det destillerte nettet ble
+   valgt – systemet skiper aldri selvspill-gevinster som ikke består
+   møtet med virkelig spill. Fargesymmetri-augmentering (fargene er
+   logisk likeverdige) er innebygd i treningen for videre iterasjoner.
+
+### Rolle i President-boten
+
+Nettet erstatter ikke søket – det samarbeider med det: nettets
+vrakforslag prøves som egen kandidat i byttesøket (og dømmes av
+simuleringen på lik linje), og nettet er reservespiller foran
+heuristikken om søket skulle feile. Alene spiller nettet på ~4,8
+poeng/runde mot «Vanskelig»-heuristikkene – på øyeblikkelig betenkningstid.
