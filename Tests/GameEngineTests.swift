@@ -305,6 +305,104 @@ final class GameEngineTests: XCTestCase {
         XCTAssertEqual(engine.rules.målPoeng, 100)
     }
 
+    /// Egenskapsbasert motortest: spill mange runder med tilfeldige LOVLIGE
+    /// handlinger og verifiser poengreglene uavhengig av motorens egen
+    /// utregning – budvinner 2×, makker 1×, Amerikaner ±mål/2 og ±mål/4,
+    /// solo ±mål, øvrige +1 per stikk.
+    func testMotorInvarianterUnderTilfeldigSpill() {
+        var rng = SeededGenerator(seed: 424242)
+        for runde in 0..<300 {
+            var regler = GameRules()
+            regler.medByttekort = runde % 5 != 4   // også klassiske regler
+            let engine = GameEngine(rules: regler)
+            engine.startRunde(seed: UInt64(runde) &* 7919 &+ 3)
+
+            var vakt = 0
+            løkke: while engine.phase != .rundeFerdig && engine.phase != .spillFerdig {
+                vakt += 1
+                if vakt > 600 { return XCTFail("Runde \(runde) henger") }
+                switch engine.phase {
+                case .budrunde:
+                    let sete = engine.aktivBudgiver
+                    let lovlige = engine.lovligeBud(for: sete)
+                    let valg = Int.random(in: 0..<100, using: &rng) < 55 || lovlige.count == 1
+                        ? BidAction.pass
+                        : lovlige.filter { $0 != .pass }.randomElement(using: &rng)!
+                    XCTAssertTrue(engine.giBud(seat: sete, action: valg))
+                case .byttekort:
+                    let sete = engine.budgiverSeat!
+                    let vrak = Array(engine.hands[sete].shuffled(using: &rng).prefix(regler.antallByttekort))
+                    XCTAssertTrue(engine.kastByttekort(vrak, seat: sete))
+                case .velgTrumf:
+                    let sete = engine.budgiverSeat!
+                    // Egne og vrakede kort kan aldri ønskes.
+                    for kort in engine.hands[sete] + engine.kastet {
+                        XCTAssertFalse(engine.kortSomKanØnskes(trumf: kort.suit).contains(kort))
+                    }
+                    if engine.erSolo, Bool.random(using: &rng) {
+                        XCTAssertTrue(engine.velgTrumf(suit: .spar, ønsket: nil))
+                    } else {
+                        var valgt = false
+                        for suit in Suit.allCases.shuffled(using: &rng) {
+                            if let ø = engine.kortSomKanØnskes(trumf: suit).randomElement(using: &rng),
+                               engine.velgTrumf(suit: suit, ønsket: ø) { valgt = true; break }
+                        }
+                        if !valgt { XCTAssertTrue(engine.velgTrumf(suit: .spar, ønsket: nil)) }
+                    }
+                    if engine.erSolo { XCTAssertNil(engine.makkerSeat) }
+                case .spill:
+                    let sete = engine.aktivSpiller
+                    let lovlige = engine.lovligeKort(for: sete)
+                    guard let kort = lovlige.randomElement(using: &rng) else {
+                        return XCTFail("Ingen lovlige kort")
+                    }
+                    // Følg farge-regelen re-verifisert.
+                    if let ledet = engine.currentTrick.first?.card.suit,
+                       engine.hands[sete].contains(where: { $0.suit == ledet }) {
+                        XCTAssertTrue(lovlige.allSatisfy { $0.suit == ledet })
+                    }
+                    XCTAssertTrue(engine.spill(kort: kort, seat: sete))
+                default:
+                    break løkke
+                }
+            }
+
+            guard let resultat = engine.sisteRunde else { return XCTFail("Mangler resultat") }
+            XCTAssertEqual(resultat.stikkPerSpiller.reduce(0, +), regler.kortPerSpiller)
+            XCTAssertTrue(engine.hands.allSatisfy(\.isEmpty))
+
+            let lag = [resultat.budgiver, resultat.makker].compactMap { $0 }
+            let lagStikk = lag.reduce(0) { $0 + resultat.stikkPerSpiller[$1] }
+            let klarte: Bool
+            let budgiverPoeng: Int
+            let makkerPoeng: Int
+            switch resultat.bud {
+            case .soloAmerikaner:
+                klarte = resultat.stikkPerSpiller[resultat.budgiver] == regler.kortPerSpiller
+                budgiverPoeng = regler.målPoeng; makkerPoeng = 0
+                XCTAssertNil(resultat.makker)
+            case .amerikaner:
+                klarte = lagStikk == regler.kortPerSpiller
+                budgiverPoeng = regler.målPoeng / 2; makkerPoeng = regler.målPoeng / 4
+            case .bud(let n):
+                klarte = lagStikk >= n
+                budgiverPoeng = 2 * n; makkerPoeng = n
+            case .pass:
+                return XCTFail("Runde uten vinnerbud")
+            }
+            XCTAssertEqual(resultat.klarte, klarte)
+            for s in 0..<4 {
+                let forventet = s == resultat.budgiver ? (klarte ? budgiverPoeng : -budgiverPoeng)
+                    : lag.contains(s) ? (klarte ? makkerPoeng : -makkerPoeng)
+                    : resultat.stikkPerSpiller[s]
+                XCTAssertEqual(resultat.poengEndring[s], forventet, "Sete \(s) i runde \(runde)")
+            }
+            if engine.phase == .spillFerdig, let vinner = engine.vinnerSeat {
+                XCTAssertGreaterThanOrEqual(engine.scores[vinner], regler.målPoeng)
+            }
+        }
+    }
+
     func testAIByrLovlig() {
         let engine = nyEngine()
         engine.startRunde(seed: 21)
