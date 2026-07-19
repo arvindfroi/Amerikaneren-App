@@ -9,12 +9,16 @@ struct AIPlayer {
     let difficulty: AIDifficulty
     let personality: AIPersonality
     private let mester: MesterAI?
+    private let nevro: NevroSpiller?
 
     init(seat: Int, difficulty: AIDifficulty, personality: AIPersonality) {
         self.seat = seat
         self.difficulty = difficulty
         self.personality = personality
         self.mester = difficulty.spillerPerfekt ? MesterAI(sete: seat) : nil
+        self.nevro = difficulty.spillerPerfekt
+            ? NevroHjerne.delt.map { NevroSpiller(sete: seat, hjerne: $0) }
+            : nil
     }
 
     // MARK: - Håndvurdering
@@ -61,6 +65,10 @@ struct AIPlayer {
         guard !lovlige.isEmpty else { return .pass }
         if let mester {
             let bud = mester.velgBud(engine: engine)
+            if lovlige.contains(bud) { return bud }
+        }
+        if let nevro {
+            let bud = nevro.velgBud(engine: engine)
             if lovlige.contains(bud) { return bud }
         }
         let hånd = engine.hands[seat]
@@ -113,6 +121,12 @@ struct AIPlayer {
                 return valg
             }
         }
+        if let nevro {
+            let valg = nevro.velgByttekort(engine: engine)
+            if valg.count == antall, valg.allSatisfy({ hånd.contains($0) }) {
+                return valg
+            }
+        }
         let (trumf, _) = Self.besteTrumf(hånd: hånd)
         func beholdVerdi(_ kort: Card) -> Int {
             let lengde = hånd.filter { $0.suit == kort.suit }.count
@@ -152,6 +166,9 @@ struct AIPlayer {
         guard !lovlige.isEmpty else { return nil }
         if lovlige.count == 1 { return lovlige[0] }
         if let mester, let kort = mester.velgKort(engine: engine), lovlige.contains(kort) {
+            return kort
+        }
+        if let nevro, let kort = nevro.velgKort(engine: engine), lovlige.contains(kort) {
             return kort
         }
         if Double.random(in: 0...1) < difficulty.feilspillSjanse {

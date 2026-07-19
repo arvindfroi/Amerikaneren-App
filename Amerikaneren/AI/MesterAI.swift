@@ -154,11 +154,23 @@ final class MesterAI {
 
         var kandidater: [(trumf: Int?, vrak: UInt64)] = []
         var sett = Set<UInt64>()
+        func leggTil(_ trumf: Int?, _ vrak: UInt64) {
+            let nøkkel = vrak | (UInt64((trumf ?? 4) + 1) << 56)
+            if sett.insert(nøkkel).inserted {
+                kandidater.append((trumf, vrak))
+            }
+        }
         for trumf in trumfKandidater {
             for vrak in vrakKandidater(hånd: hånd16, antall: antall, trumfFarge: trumf) {
-                let nøkkel = vrak | (UInt64((trumf ?? 4) + 1) << 56)
-                if sett.insert(nøkkel).inserted {
-                    kandidater.append((trumf, vrak))
+                leggTil(trumf, vrak)
+            }
+            // Det nevrale nettets forslag prøves som egen kandidat – det er
+            // trent på nettopp dette valget, og simuleringen dømmer det på
+            // lik linje med de heuristiske kandidatene.
+            if let hjerne = NevroHjerne.delt {
+                let forslag = NevroSpiller(sete: sete, hjerne: hjerne).velgByttekort(engine: engine)
+                if forslag.count == antall {
+                    leggTil(trumf, Kortmaske.maske(forslag))
                 }
             }
         }

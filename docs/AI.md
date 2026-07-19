@@ -1,9 +1,10 @@
 # Slik tenker CPU-ene
 
-AI-en har to lag. Lett, Middels og Vanskelig bruker ren heuristikk i
+AI-en har tre lag. Lett, Middels og Vanskelig bruker ren heuristikk i
 `AI/AIPlayer.swift` – rask, forutsigbar å teste og lett å justere.
 **President**-nivået bruker søkeboten **MesterAI** (`AI/MesterAI.swift` med
-`MesterVerden.swift` og `MesterSolver.swift`), beskrevet nederst.
+`MesterVerden.swift` og `MesterSolver.swift`) sammen med det nevrale
+nettet **NevroHjerne** (`AI/NevroNett.swift`), begge beskrevet nederst.
 
 ## Håndvurdering (`estimerStikk`)
 
@@ -118,10 +119,20 @@ Beslutningene bygger på tre teknikker:
    Løseren håndhever både farge-følging og makkerplikten i første stikk.
 3. **Simulert budgivning** (`velgBud`): pass, laveste lovlige bud og
    Amerikaner sammenliknes på forventet poengsum over de samme samplede
-   verdenene – budscenarioet spilles ut med hybrid grådig/eksakt løsning,
-   pass-scenarioet lar den sterkeste motstanderen deklarere. Trumfvalget
-   (`velgTrumfOgMakker`) simulerer alle fire farger og ber alltid om det
-   høyeste trumfkortet laget mangler.
+   verdenene – budscenarioet spilles ut med hybrid grådig/eksakt løsning
+   og tar høyde for talong-opptaket, pass-scenarioet lar den sterkeste
+   motstanderen deklarere. Trumfvalget (`velgTrumfOgMakker`) simulerer
+   alle fire farger og ber alltid om det høyeste **levende** trumfkortet
+   laget mangler (aldri et kort budgiveren selv vraket).
+4. **Simulert vrak** (`velgByttekort`): kandidat-vrak genereres for de
+   beste trumffargene (behold trumf/ess, tøm korte sidefarger – pluss
+   nettets forslag) og spilles ut mot samplede verdener; vraket som
+   oftest berger budet vinner.
+
+Med byttekort-varianten modellerer samplingen også vrakhaugen: for alle
+andre enn budvinneren er de fire vrakede kortene ukjente, og det
+etterlyste kortet kan ligge dødt der – da spiller budgiveren uvitende
+alene, akkurat som rundt et ekte bord.
 
 I kortspillet måles hvert kandidatkort (etter sekvensreduksjon) over alle
 verdenene: budgiverlaget maksimerer sannsynligheten for å nå budet og
