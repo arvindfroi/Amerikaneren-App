@@ -20,6 +20,14 @@ struct GameTableView: View {
                 if vm.engine.phase == .budrunde && vm.engine.aktivBudgiver == 0 {
                     BiddingView(vm: vm)
                         .transition(DS.Bevegelse.panelInn)
+                } else if vm.engine.phase == .byttekort && vm.engine.budgiverSeat == 0 {
+                    ByttekortPanel(
+                        hånd: vm.engine.hands.first ?? [],
+                        antall: vm.engine.rules.antallByttekort
+                    ) { vrak in
+                        vm.menneskeVraker(vrak)
+                    }
+                    .transition(DS.Bevegelse.panelInn)
                 } else if vm.engine.phase == .velgTrumf && vm.engine.budgiverSeat == 0 {
                     TrumfvalgView(vm: vm)
                         .transition(DS.Bevegelse.panelInn)
@@ -80,7 +88,7 @@ struct GameTableView: View {
                     .font(Theme.kroppFont(14).weight(.bold))
                     .foregroundStyle(Theme.rød)
             }
-            Text("Stikk \(min(vm.engine.trickNummer + 1, 13))/13")
+            Text("Stikk \(min(vm.engine.trickNummer + 1, vm.engine.rules.kortPerSpiller))/\(vm.engine.rules.kortPerSpiller)")
                 .font(Theme.kroppFont(14))
                 .foregroundStyle(Theme.blekkSvak)
         }

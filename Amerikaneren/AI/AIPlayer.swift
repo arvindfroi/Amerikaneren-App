@@ -101,6 +101,29 @@ struct AIPlayer {
         return .pass
     }
 
+    /// Byttekort: hvilke kort vrakes når budvinneren har tatt opp talongen.
+    /// Heuristikken beholder trumf, ess og lange farger – og kaster lave
+    /// kort fra korte sidefarger (skaper renons for stjeling).
+    func velgByttekort(engine: GameEngine) -> [Card] {
+        let hånd = engine.hands[seat]
+        let antall = engine.rules.antallByttekort
+        if let mester {
+            let valg = mester.velgByttekort(engine: engine)
+            if valg.count == antall, valg.allSatisfy({ hånd.contains($0) }) {
+                return valg
+            }
+        }
+        let (trumf, _) = Self.besteTrumf(hånd: hånd)
+        func beholdVerdi(_ kort: Card) -> Int {
+            let lengde = hånd.filter { $0.suit == kort.suit }.count
+            return (kort.suit == trumf ? 1000 : 0)
+                + (kort.rank == .ace ? 500 : 0)
+                + kort.rank.rawValue
+                + lengde * 3
+        }
+        return Array(hånd.sorted { beholdVerdi($0) < beholdVerdi($1) }.prefix(antall))
+    }
+
     func velgTrumfOgMakker(engine: GameEngine) -> (Suit, Card)? {
         if let mester, let valg = mester.velgTrumfOgMakker(engine: engine),
            engine.kortSomKanØnskes(trumf: valg.0).contains(valg.1) {

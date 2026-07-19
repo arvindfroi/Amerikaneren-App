@@ -44,9 +44,18 @@ struct OnlineTableView: View {
         guard let snap = vm.snap else { return false }
         switch snap.phase {
         case .budrunde, .spill: return snap.aktivSeat == vm.mittSete
-        case .velgTrumf: return snap.budgiverSeat == vm.mittSete
+        case .byttekort, .velgTrumf: return snap.budgiverSeat == vm.mittSete
         default: return false
         }
+    }
+
+    /// Antall stikk i runden, utledet av øyeblikksbildet (12 med byttekort).
+    private func stikkTotalt(_ snap: OnlineSnapshot) -> Int {
+        let spiltIStikket = snap.currentTrick.contains { $0.seat == vm.mittSete } ? 1 : 0
+        let iHånd = snap.phase == .byttekort
+            ? snap.dinHånd.count - (snap.antallBytte ?? 0)
+            : snap.dinHånd.count
+        return max(1, snap.trickNummer + iHånd + spiltIStikket)
     }
 
     // MARK: - Bordet
@@ -62,10 +71,16 @@ struct OnlineTableView: View {
             Spacer(minLength: 0)
             midten(snap)
             Spacer(minLength: 0)
-            // Tommelsonen: bud- og trumfpanelet legger seg rett over hånden.
+            // Tommelsonen: bud-, bytte- og trumfpanelet legger seg rett over hånden.
             if snap.phase == .budrunde, snap.aktivSeat == vm.mittSete {
                 budPanel(snap)
                     .transition(DS.Bevegelse.panelInn)
+            } else if snap.phase == .byttekort, snap.budgiverSeat == vm.mittSete,
+                      let antall = snap.antallBytte {
+                ByttekortPanel(hånd: snap.dinHånd, antall: antall) { vrak in
+                    vm.vraker(vrak)
+                }
+                .transition(DS.Bevegelse.panelInn)
             } else if snap.phase == .velgTrumf, snap.budgiverSeat == vm.mittSete {
                 trumfPanel(snap)
                     .transition(DS.Bevegelse.panelInn)
@@ -104,7 +119,7 @@ struct OnlineTableView: View {
                     .font(Theme.kroppFont(14))
                     .foregroundStyle(Theme.blekkSvak)
             }
-            Text("Stikk \(min(snap.trickNummer + 1, 13))/13")
+            Text("Stikk \(min(snap.trickNummer + 1, stikkTotalt(snap)))/\(stikkTotalt(snap))")
                 .font(Theme.kroppFont(14))
                 .foregroundStyle(Theme.blekkSvak)
         }

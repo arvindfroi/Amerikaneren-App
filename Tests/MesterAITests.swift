@@ -106,7 +106,11 @@ final class MesterAITests: XCTestCase {
         while engine.phase == .budrunde {
             engine.giBud(seat: engine.aktivBudgiver, action: .pass)
         }
-        let ønsket = engine.kortSomKanØnskes(trumf: .spar)[0]
+        let vrak = Array(engine.hands[budgiver].suffix(engine.rules.antallByttekort))
+        XCTAssertTrue(engine.kastByttekort(vrak, seat: budgiver))
+        guard let ønsket = engine.kortSomKanØnskes(trumf: .spar)
+            .first(where: { kort in (0..<4).contains { $0 != budgiver && engine.hands[$0].contains(kort) } })
+        else { return XCTFail("Fant ikke levende ønskekort") }
         engine.velgTrumf(suit: .spar, ønsket: ønsket)
 
         // Spill noen stikk med første lovlige kort så renonser oppstår.
@@ -116,27 +120,33 @@ final class MesterAITests: XCTestCase {
         }
         guard engine.phase == .spill else { return }
 
-        let sete = engine.aktivSpiller
-        let innsikt = try XCTUnwrap(Spillinnsikt(engine: engine, sete: sete))
-        var rng = SeededGenerator(seed: 3)
-        for _ in 0..<50 {
-            let verden = try XCTUnwrap(innsikt.sampleVerden(rng: &rng))
-            // Egen hånd er urørt, og alle seter har riktig antall kort.
-            XCTAssertEqual(verden.hender[sete], innsikt.minHånd)
-            for s in 0..<4 {
-                XCTAssertEqual(verden.hender[s].nonzeroBitCount, engine.hands[s].count)
-                // Ingen kort på seter som beviselig ikke kan ha dem.
-                XCTAssertEqual(verden.hender[s] & innsikt.forbudt[s], 0)
+        // Sjekk innsikten både for budgiveren (kjenner vraket) og en annen.
+        for sete in [budgiver, (budgiver + 1) % 4] {
+            let innsikt = try XCTUnwrap(Spillinnsikt(engine: engine, sete: sete))
+            // Budgiveren vet hvor vraket er; andre må regne det som ukjent.
+            XCTAssertEqual(innsikt.antallDødeUkjente, sete == budgiver ? 0 : 4)
+            var rng = SeededGenerator(seed: 3)
+            for _ in 0..<50 {
+                let verden = try XCTUnwrap(innsikt.sampleVerden(rng: &rng))
+                // Egen hånd er urørt, og alle seter har riktig antall kort.
+                XCTAssertEqual(verden.hender[sete], innsikt.minHånd)
+                for s in 0..<4 {
+                    XCTAssertEqual(verden.hender[s].nonzeroBitCount, engine.hands[s].count)
+                    // Ingen kort på seter som beviselig ikke kan ha dem.
+                    XCTAssertEqual(verden.hender[s] & innsikt.forbudt[s], 0)
+                }
+                // Ingen spilte kort er delt ut, og ingenting deles ut dobbelt.
+                let spilte = Kortmaske.maske(engine.spilteKort)
+                var sett: UInt64 = 0
+                for s in 0..<4 {
+                    XCTAssertEqual(verden.hender[s] & spilte, 0)
+                    XCTAssertEqual(verden.hender[s] & sett, 0)
+                    sett |= verden.hender[s]
+                }
+                // Det som ikke ble delt ut er nøyaktig vrakhaugen.
+                let ikkeDelt = (innsikt.ukjente | innsikt.minHånd) & ~sett
+                XCTAssertEqual(ikkeDelt.nonzeroBitCount, innsikt.antallDødeUkjente)
             }
-            // Ingen spilte kort er delt ut, og ingenting deles ut dobbelt.
-            let spilte = Kortmaske.maske(engine.spilteKort)
-            var sett: UInt64 = 0
-            for s in 0..<4 {
-                XCTAssertEqual(verden.hender[s] & spilte, 0)
-                XCTAssertEqual(verden.hender[s] & sett, 0)
-                sett |= verden.hender[s]
-            }
-            XCTAssertEqual(sett, innsikt.ukjente | innsikt.minHånd)
         }
     }
 
@@ -155,6 +165,11 @@ final class MesterAITests: XCTestCase {
                 let bud = raskMester(sete: sete, seed: UInt64(vakt)).velgBud(engine: engine)
                 XCTAssertTrue(engine.lovligeBud(for: sete).contains(bud))
                 XCTAssertTrue(engine.giBud(seat: sete, action: bud))
+            case .byttekort:
+                let sete = engine.budgiverSeat!
+                let vrak = raskMester(sete: sete, seed: UInt64(vakt)).velgByttekort(engine: engine)
+                XCTAssertEqual(vrak.count, engine.rules.antallByttekort)
+                XCTAssertTrue(engine.kastByttekort(vrak, seat: sete))
             case .velgTrumf:
                 let sete = engine.budgiverSeat!
                 let valg = raskMester(sete: sete, seed: UInt64(vakt)).velgTrumfOgMakker(engine: engine)
@@ -170,7 +185,7 @@ final class MesterAITests: XCTestCase {
                 return
             }
         }
-        XCTAssertEqual(engine.stikkTatt.reduce(0, +), 13)
+        XCTAssertEqual(engine.stikkTatt.reduce(0, +), engine.rules.kortPerSpiller)
     }
 
     func testPresidentAIPlayerErFortsattLovligOgKomplett() {
@@ -185,6 +200,10 @@ final class MesterAITests: XCTestCase {
                 let sete = engine.aktivBudgiver
                 let ai = AIPlayer(seat: sete, difficulty: .president, personality: .balansert)
                 XCTAssertTrue(engine.giBud(seat: sete, action: ai.velgBud(engine: engine)))
+            case .byttekort:
+                let sete = engine.budgiverSeat!
+                let ai = AIPlayer(seat: sete, difficulty: .president, personality: .balansert)
+                XCTAssertTrue(engine.kastByttekort(ai.velgByttekort(engine: engine), seat: sete))
             case .velgTrumf:
                 let sete = engine.budgiverSeat!
                 let ai = AIPlayer(seat: sete, difficulty: .president, personality: .balansert)
@@ -203,6 +222,6 @@ final class MesterAITests: XCTestCase {
                 break
             }
         }
-        XCTAssertEqual(engine.stikkTatt.reduce(0, +), 13)
+        XCTAssertEqual(engine.stikkTatt.reduce(0, +), engine.rules.kortPerSpiller)
     }
 }

@@ -69,12 +69,15 @@ struct Spillinnsikt {
     let bud: BidAction
     let erAmerikaner: Bool
     let trumfFarge: Int?
+    let stikkTotalt: Int         // stikk i runden (12 med byttekort, ellers 13)
     let minHånd: UInt64
     let antallKort: [Int]        // kort igjen per sete (åpen informasjon)
     let ukjente: UInt64          // kort setet ikke vet hvor er
+    let antallDødeUkjente: Int   // vrakede byttekort med ukjent innhold (0 for budgiver)
     let forbudt: [UInt64]        // per sete: kort setet beviselig ikke har (renons)
     let ønsketIndeks: Int?       // uavslørt etterlyst kort som ikke er på egen hånd
     let ønsketKandidater: [Int]  // seter som fortsatt kan ha det
+    let ønsketKanVæreDød: Bool   // kan det etterlyste kortet ligge i vraket?
     let pliktkort: Int?          // etterlyst kort som ennå må håndheves i første stikk
     let kjentMakker: Int?        // avslørt makker – eller meg selv om jeg har kortet
     let jegErBudgiverlag: Bool
@@ -94,6 +97,7 @@ struct Spillinnsikt {
         self.bud = budAction
         self.erAmerikaner = engine.erAmerikaner
         self.trumfFarge = engine.trumf.map(Kortmaske.fargeIndeks)
+        self.stikkTotalt = engine.rules.kortPerSpiller
         let minMaske = Kortmaske.maske(engine.hands[sete])
         self.minHånd = minMaske
         self.antallKort = engine.hands.map(\.count)
@@ -102,8 +106,17 @@ struct Spillinnsikt {
         self.leder = engine.currentTrick.first?.seat ?? engine.aktivSpiller
         self.pågående = engine.currentTrick.map { ($0.seat, Kortmaske.indeks($0.card)) }
 
+        // Budgiveren kjenner sitt eget vrak; for alle andre er de vrakede
+        // kortene bare «ukjente kort som aldri dukker opp».
         let spilteMaske = Kortmaske.maske(engine.spilteKort)
-        self.ukjente = Kortmaske.alle & ~spilteMaske & ~minMaske
+        let kastetMaske = Kortmaske.maske(engine.kastet)
+        if sete == budgiver {
+            self.ukjente = Kortmaske.alle & ~spilteMaske & ~minMaske & ~kastetMaske
+            self.antallDødeUkjente = 0
+        } else {
+            self.ukjente = Kortmaske.alle & ~spilteMaske & ~minMaske
+            self.antallDødeUkjente = engine.kastet.count
+        }
 
         // Gjenspill de ferdige stikkene for å finne renonser og – i første
         // stikk – hvem som beviselig ikke kan ha det etterlyste kortet
@@ -162,19 +175,22 @@ struct Spillinnsikt {
         self.jegErBudgiverlag = sete == budgiver || engine.makkerSeat == sete
         self.kjentMakker = engine.makkerAvslørt ? engine.makkerSeat : (jegHarØnsket ? sete : nil)
 
-        if let ø = øIdx, ønsketUte, !jegHarØnsket {
+        if let ø = øIdx, ønsketUte, !jegHarØnsket, ukjente & (1 << UInt64(ø)) != 0 {
             self.ønsketIndeks = ø
             let kandidater = (0..<4).filter { s in
                 s != sete && s != budgiver && !utelukketØnsket.contains(s)
                     && forbudt[s] & (1 << UInt64(ø)) == 0
             }
-            // Skulle slutningene (mot formodning) utelukke alle, slipp dem.
-            self.ønsketKandidater = kandidater.isEmpty
+            let kanVæreDød = antallDødeUkjente > 0
+            // Skulle slutningene (mot formodning) utelukke alt, slipp dem.
+            self.ønsketKandidater = (kandidater.isEmpty && !kanVæreDød)
                 ? (0..<4).filter { $0 != sete && $0 != budgiver }
                 : kandidater
+            self.ønsketKanVæreDød = kanVæreDød
         } else {
             self.ønsketIndeks = nil
             self.ønsketKandidater = []
+            self.ønsketKanVæreDød = false
         }
         self.pliktkort = (trickNummer == 0 && ønsketUte) ? øIdx : nil
     }
@@ -190,7 +206,9 @@ struct Verden {
 
 extension Spillinnsikt {
     /// Trekker en tilfeldig fordeling av de ukjente kortene som respekterer
-    /// alle kjente begrensninger. Mest bundne kort plasseres først.
+    /// alle kjente begrensninger. «Sete 4» er vrakhaugen: de byttekortene
+    /// budvinneren la bort, med ukjent innhold for alle andre. Mest bundne
+    /// kort plasseres først.
     func sampleVerden<R: RandomNumberGenerator>(rng: inout R) -> Verden? {
         var pool = Kortmaske.indekser(ukjente)
         if let ø = ønsketIndeks {
@@ -200,16 +218,20 @@ extension Spillinnsikt {
         for _ in 0..<120 {
             var hender = SIMD4<UInt64>(repeating: 0)
             hender[sete] = minHånd
-            var behov = antallKort
+            var behov = antallKort + [antallDødeUkjente]
             behov[sete] = 0
             var makker = kjentMakker
 
             if let ø = ønsketIndeks {
-                let mulige = ønsketKandidater.filter { behov[$0] > 0 }
+                var mulige = ønsketKandidater.filter { behov[$0] > 0 }
+                if ønsketKanVæreDød { mulige.append(4) }
                 guard let valgt = mulige.randomElement(using: &rng) else { return nil }
-                hender[valgt] |= 1 << UInt64(ø)
+                if valgt < 4 {
+                    hender[valgt] |= 1 << UInt64(ø)
+                    makker = valgt
+                }
                 behov[valgt] -= 1
-                makker = valgt
+                // Havner kortet i vraket, spiller budgiveren uvitende alene.
             }
 
             pool.shuffle(using: &rng)
@@ -220,7 +242,9 @@ extension Spillinnsikt {
             var ok = true
             for kortIdx in ordnet {
                 let bit: UInt64 = 1 << UInt64(kortIdx)
-                let valgbare = (0..<4).filter { behov[$0] > 0 && forbudt[$0] & bit == 0 }
+                let valgbare = (0...4).filter { s in
+                    behov[s] > 0 && (s == 4 || forbudt[s] & bit == 0)
+                }
                 guard !valgbare.isEmpty else { ok = false; break }
                 // Vektet etter gjenstående behov for jevn fordeling.
                 let total = valgbare.reduce(0) { $0 + behov[$1] }
@@ -230,7 +254,7 @@ extension Spillinnsikt {
                     r -= behov[s]
                     if r < 0 { valgt = s; break }
                 }
-                hender[valgt] |= bit
+                if valgt < 4 { hender[valgt] |= bit }
                 behov[valgt] -= 1
             }
             guard ok else { continue }
@@ -244,6 +268,8 @@ extension Spillinnsikt {
 
     private func antallTillatte(_ kortIdx: Int, behov: [Int]) -> Int {
         let bit: UInt64 = 1 << UInt64(kortIdx)
-        return (0..<4).filter { behov[$0] > 0 && forbudt[$0] & bit == 0 }.count
+        return (0...4).filter { s in
+            behov[s] > 0 && (s == 4 || forbudt[s] & bit == 0)
+        }.count
     }
 }

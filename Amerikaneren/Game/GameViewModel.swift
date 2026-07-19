@@ -109,6 +109,13 @@ final class GameViewModel: ObservableObject {
         kjørAI()
     }
 
+    func menneskeVraker(_ kort: [Card]) {
+        guard engine.kastByttekort(kort, seat: 0) else { return }
+        Feedback.kortSpilt()
+        bump()
+        kjørAI()
+    }
+
     func menneskeSpiller(_ kort: Card) {
         let førTrick = engine.trickNummer
         guard engine.spill(kort: kort, seat: 0) else { return }
@@ -137,6 +144,7 @@ final class GameViewModel: ObservableObject {
     private func sjekkDinTur() {
         let minTur = (engine.phase == .spill && engine.aktivSpiller == 0)
             || (engine.phase == .budrunde && engine.aktivBudgiver == 0)
+            || (engine.phase == .byttekort && engine.budgiverSeat == 0)
             || (engine.phase == .velgTrumf && engine.budgiverSeat == 0)
         if minTur && !varMinTur { Feedback.dinTur() }
         varMinTur = minTur
@@ -165,6 +173,20 @@ final class GameViewModel: ObservableObject {
                     Feedback.amerikanerMeldt()
                 }
                 engine.giBud(seat: seat, action: bud)
+                sjekkDinTur()
+                bump()
+
+            case .byttekort:
+                guard let seat = engine.budgiverSeat, seat != 0, let ai = aiSpillere[seat] else { sjekkDinTur(); return }
+                try? await Task.sleep(nanoseconds: 900_000_000)
+                guard !Task.isCancelled else { return }
+                let vrak = ai.velgByttekort(engine: engine)
+                if !engine.kastByttekort(vrak, seat: seat) {
+                    // Sikkerhetsnett: kast de fire første kortene om AI-en feiler.
+                    let nødvrak = Array(engine.hands[seat].prefix(engine.rules.antallByttekort))
+                    engine.kastByttekort(nødvrak, seat: seat)
+                }
+                sisteReplikk = (navn(for: seat), "Jeg tar talongen og bytter ut fire kort.")
                 sjekkDinTur()
                 bump()
 

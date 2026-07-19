@@ -63,7 +63,7 @@ struct TutorialView: View {
     }
 
     private var leksjon1: some View {
-        leksjon("Amerikaner spilles med hele kortstokken. Med fire spillere får alle 13 kort. Ess er høyest, to er lavest.") {
+        leksjon("Amerikaner spilles med hele kortstokken. Med fire spillere får alle 12 kort, og de siste fire legges i talongen – den får budvinneren bytte med. Ess er høyest, to er lavest.") {
             PapirPanel {
                 VStack(spacing: 12) {
                     Text("Kortenes rangering").font(Theme.kroppFont(16).weight(.bold)).foregroundStyle(Theme.blekk)
@@ -148,11 +148,11 @@ struct TutorialView: View {
     }
 
     private var leksjon6: some View {
-        leksjon("Til slutt: meldingen «AMERIKANER!» betyr at du tar alle 13 stikkene helt alene – uten trumf og uten makker. Klarer du det, får du 52 poeng og vinner på flekken. Feiler du… −52. Lykke til!") {
+        leksjon("Til slutt: meldingen «AMERIKANER!» betyr at du tar alle stikkene helt alene – uten trumf og uten makker. Klarer du det, får du 100 poeng og vinner på flekken. Feiler du… −100. Lykke til!") {
             PapirPanel {
                 VStack(spacing: 10) {
                     Text("🇺🇸").font(.system(size: 64))
-                    Text("Førstemann til 52 poeng vinner spillet!")
+                    Text("Førstemann til 100 poeng vinner spillet!")
                         .font(Theme.kroppFont(17).weight(.bold)).foregroundStyle(Theme.blekk)
                     Text("Ved lik poengsum vinner budlaget fra siste runde.")
                         .font(Theme.kroppFont(13)).foregroundStyle(Theme.blekkSvak)

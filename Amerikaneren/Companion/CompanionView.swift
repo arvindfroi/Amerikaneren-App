@@ -61,7 +61,7 @@ struct CompanionView: View {
                             }
                             .foregroundStyle(Theme.blå)
                         }
-                        Stepper("Spill til \(vm.målPoeng) poeng", value: $vm.målPoeng, in: 20...100, step: 1)
+                        Stepper("Spill til \(vm.målPoeng) poeng", value: $vm.målPoeng, in: 20...150, step: 1)
                             .font(Theme.kroppFont(15))
                             .foregroundStyle(Theme.blekk)
                     }

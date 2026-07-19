@@ -1,13 +1,17 @@
 import Foundation
 
-/// Regeloppsett for et parti. Standard er 4 spillere og først til 52 poeng,
-/// slik reglene beskriver (kortregler.no / Wikipedia).
+/// Regeloppsett for et parti. Standard er 4 spillere, byttekort-varianten
+/// (kortregler.no) og først til 100 poeng.
 struct GameRules: Codable, Hashable {
     var antallSpillere: Int = 4
-    var målPoeng: Int = 52
+    var målPoeng: Int = 100
     var minsteBud: Int = 5
+    /// Byttekort-varianten: fire kort legges i en talong som budvinneren
+    /// tar opp – og bytter ut fire valgfrie kort mot, skjult for de andre.
+    var medByttekort: Bool = true
 
-    var kortPerSpiller: Int { 52 / antallSpillere }
+    var antallByttekort: Int { medByttekort ? 4 : 0 }
+    var kortPerSpiller: Int { (52 - antallByttekort) / antallSpillere }
     var maksBud: Int { kortPerSpiller }
 }
 
@@ -16,6 +20,7 @@ struct GameRules: Codable, Hashable {
 enum GamePhase: String, Codable, Equatable {
     case venterPåStart
     case budrunde
+    case byttekort        // budvinner har tatt opp talongen og velger vrak
     case velgTrumf        // budvinner velger trumf og ber om et kort (makker)
     case spill            // stikkspill
     case rundeFerdig
@@ -54,6 +59,10 @@ final class GameEngine {
     private(set) var harPasset: Set<Int> = []
     private(set) var høyesteBud: PlacedBid?
 
+    // Byttekort (talong)
+    private(set) var talon: [Card] = []        // skjult til budvinneren tar dem opp
+    private(set) var kastet: [Card] = []       // vraket – kjent kun for budvinneren
+
     // Trumf og makker
     private(set) var trumf: Suit?
     private(set) var ønsketKort: Card?
@@ -87,9 +96,12 @@ final class GameEngine {
         precondition(phase == .venterPåStart || phase == .rundeFerdig)
         let stokk = Deck.stokket(seed: seed)
         let n = rules.antallSpillere
+        let iSpill = stokk.count - rules.antallByttekort
         hands = (0..<n).map { s in
-            stride(from: s, to: stokk.count, by: n).map { stokk[$0] }.sortertForHånd()
+            stride(from: s, to: iSpill, by: n).map { stokk[$0] }.sortertForHånd()
         }
+        talon = Array(stokk.suffix(rules.antallByttekort))
+        kastet = []
         bids = []
         harPasset = []
         høyesteBud = nil
@@ -150,31 +162,53 @@ final class GameEngine {
         }
         // Én igjen med høyeste bud: budrunden er over.
         if aktive.count == 1, let vinner = høyesteBud, aktive[0] == vinner.seat {
-            aktivBudgiver = vinner.seat
-            aktivSpiller = vinner.seat
-            if vinner.action == .amerikaner {
-                erAmerikaner = true
-                trumf = nil
-                makkerSeat = nil
-                phase = .spill
-            } else {
-                phase = .velgTrumf
-            }
+            avsluttBudrunde(vinner: vinner)
             return
         }
         // Amerikaner kan ikke overbys – avslutt med en gang.
         if let vinner = høyesteBud, vinner.action == .amerikaner {
-            aktivBudgiver = vinner.seat
-            aktivSpiller = vinner.seat
-            erAmerikaner = true
-            trumf = nil
-            makkerSeat = nil
-            phase = .spill
+            avsluttBudrunde(vinner: vinner)
             return
         }
         var neste = (aktivBudgiver + 1) % n
         while harPasset.contains(neste) { neste = (neste + 1) % n }
         aktivBudgiver = neste
+    }
+
+    /// Budrunden er avgjort: budvinneren tar eventuelt opp talongen og skal
+    /// vrake, ellers går spillet rett til trumfvalg (eller utspill ved
+    /// Amerikaner-melding).
+    private func avsluttBudrunde(vinner: PlacedBid) {
+        aktivBudgiver = vinner.seat
+        aktivSpiller = vinner.seat
+        if vinner.action == .amerikaner {
+            erAmerikaner = true
+            trumf = nil
+            makkerSeat = nil
+        }
+        if rules.medByttekort {
+            hands[vinner.seat] = (hands[vinner.seat] + talon).sortertForHånd()
+            phase = .byttekort
+        } else {
+            phase = erAmerikaner ? .spill : .velgTrumf
+        }
+    }
+
+    // MARK: - Byttekort
+
+    /// Budvinneren vraker like mange kort som talongen ga. Vrakede kort er
+    /// ute av runden og forblir skjult for de andre spillerne.
+    @discardableResult
+    func kastByttekort(_ kort: [Card], seat: Int) -> Bool {
+        guard phase == .byttekort, seat == budgiverSeat,
+              kort.count == rules.antallByttekort,
+              Set(kort).count == kort.count,
+              kort.allSatisfy({ hands[seat].contains($0) }) else { return false }
+        hands[seat].removeAll { kort.contains($0) }
+        kastet = kort
+        aktivSpiller = seat
+        phase = erAmerikaner ? .spill : .velgTrumf
+        return true
     }
 
     // MARK: - Trumf og makker

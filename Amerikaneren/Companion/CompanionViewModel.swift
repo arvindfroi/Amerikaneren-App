@@ -24,7 +24,7 @@ final class CompanionViewModel: ObservableObject {
     @Published var mittNavn: String = "Du" {
         didSet { if navneliste[0].isEmpty { navneliste[0] = mittNavn } }
     }
-    @Published var målPoeng = 52
+    @Published var målPoeng = 100
 
     @Published var partiPågår = false
     @Published private(set) var spillere: [String] = []

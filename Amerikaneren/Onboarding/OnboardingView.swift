@@ -25,15 +25,15 @@ struct OnboardingView: View {
                     navneside.tag(1)
                     regelkort(
                         emoji: "🎯", tittel: "Byd på stikk",
-                        tekst: "Alle 52 kort deles ut. I budrunden melder du hvor mange stikk du tror du klarer – eller roper «AMERIKANER!» for å ta alle 13 alene."
+                        tekst: "Alle får 12 kort – fire ligger i talongen som budvinneren bytter med. I budrunden melder du hvor mange stikk du tror du klarer, eller roper «AMERIKANER!» for å ta alle alene."
                     ).tag(2)
                     regelkort(
                         emoji: "🤝", tittel: "Hemmelig makker",
                         tekst: "Budvinneren velger trumf og ber om et kort, f.eks. spar ess. Den som har kortet blir hemmelig makker – og avsløres først når kortet legges!"
                     ).tag(3)
                     regelkort(
-                        emoji: "🏁", tittel: "Først til 52",
-                        tekst: "Klarer laget budet, får begge budpoengene. Feiler dere, trekkes de. Alle andre får ett poeng per stikk. Førstemann til 52 vinner!"
+                        emoji: "🏁", tittel: "Først til 100",
+                        tekst: "Klarer laget budet, får begge budpoengene. Feiler dere, trekkes de. Alle andre får ett poeng per stikk. Førstemann til 100 vinner!"
                     ).tag(4)
                     sisteSide.tag(5)
                 }

@@ -40,6 +40,8 @@ struct OnlineSetup: Codable {
 /// avsenderen på vertssiden – aldri av meldingen.
 enum OnlineAction: Codable {
     case bud(BidAction)
+    /// Byttekort: budvinnerens vrak etter å ha tatt opp talongen.
+    case bytt([Card])
     case trumf(Suit, Card)
     case kort(Card)
 }
@@ -67,6 +69,8 @@ struct OnlineSnapshot: Codable {
     var dinHånd: [Card]
     var lovligeKort: [Card]
     var lovligeBud: [BidAction]
+    /// Antall byttekort som skal vrakes i byttefasen (kun budvinneren).
+    var antallBytte: Int?
 
     // Rundeslutt/partislutt
     var sisteRunde: RoundResult?
