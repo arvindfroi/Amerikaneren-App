@@ -59,6 +59,42 @@ enum Kortmaske {
     }
 }
 
+/// Hva et sete meldte i budrunden – offentlig informasjon som sier noe om
+/// håndstyrken: den som bød 8 har neppe søppel, den som passet på 5 har
+/// neppe en kanonhånd. Brukes til å vekte samplede verdener.
+struct BudProfil {
+    /// Høyeste tallbud setet ga.
+    var tallbud: Int?
+    /// Laveste tallbud setet kunne gitt da det passet (nil om det aldri
+    /// passet, eller om gulvet alt var Amerikaner-nivå).
+    var passetVedGulv: Int?
+    /// Meldte Amerikaner eller solo (alle stikk).
+    var meldteAlle = false
+
+    var harSignal: Bool { tallbud != nil || passetVedGulv != nil || meldteAlle }
+
+    /// Bygger profiler per sete fra budhistorikken.
+    static func fra(bids: [PlacedBid], minsteBud: Int) -> [BudProfil] {
+        var profiler = [BudProfil](repeating: BudProfil(), count: 4)
+        var høyesteRang = -1
+        for bud in bids {
+            switch bud.action {
+            case .pass:
+                if profiler[bud.seat].passetVedGulv == nil, høyesteRang < BidAction.amerikaner.rang {
+                    profiler[bud.seat].passetVedGulv = max(minsteBud, høyesteRang + 1)
+                }
+            case .bud(let n):
+                profiler[bud.seat].tallbud = max(profiler[bud.seat].tallbud ?? 0, n)
+                høyesteRang = n
+            case .amerikaner, .soloAmerikaner:
+                profiler[bud.seat].meldteAlle = true
+                høyesteRang = bud.action.rang
+            }
+        }
+        return profiler
+    }
+}
+
 /// Alt et sete lovlig vet om stikkspillet: egen hånd, spilte kort, avslørte
 /// renonser og hvor det etterlyste kortet kan befinne seg. MesterAI ser aldri
 /// motstandernes hender – bare dette – og trekker slutninger på samme grunnlag
@@ -85,6 +121,8 @@ struct Spillinnsikt {
     let trickNummer: Int
     let leder: Int
     let pågående: [(sete: Int, indeks: Int)]
+    let budProfiler: [BudProfil]   // hva hvert sete meldte (offentlig)
+    let spiltAvSete: [UInt64]      // kort hvert sete har lagt så langt
 
     init?(engine: GameEngine, sete: Int) {
         guard engine.phase == .spill,
@@ -126,9 +164,11 @@ struct Spillinnsikt {
         let øIdx = engine.ønsketKort.map(Kortmaske.indeks)
         let ønsketUte = engine.ønsketKort != nil && !engine.ønsketLagt
         var forbudt = [UInt64](repeating: 0, count: 4)
+        var spiltAv = [UInt64](repeating: 0, count: 4)
         var utelukketØnsket = Set<Int>()
 
         func registrer(sete spillerSete: Int, kortIdx: Int, ledFarge: Int, førsteStikk: Bool) {
+            spiltAv[spillerSete] |= 1 << UInt64(kortIdx)
             if kortIdx / 13 != ledFarge {
                 forbudt[spillerSete] |= Kortmaske.fargeMaske(ledFarge)
             }
@@ -169,6 +209,8 @@ struct Spillinnsikt {
             }
         }
         self.forbudt = forbudt
+        self.spiltAvSete = spiltAv
+        self.budProfiler = BudProfil.fra(bids: engine.bids, minsteBud: engine.rules.minsteBud)
 
         // Egen lagtilhørighet: budgiveren og makkeren vet det selv fra start,
         // forsvarerne vet at de ikke har kortet. Ved solo-amerikaner finnes

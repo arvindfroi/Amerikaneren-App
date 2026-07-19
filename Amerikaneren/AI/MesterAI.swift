@@ -16,6 +16,21 @@ struct MesterKonfig {
     var verdenerVedBud = 48
     /// Antall samplede utdelinger per vrak-kandidat i byttefasen.
     var verdenerVedBytte = 20
+    /// Vekt samplede verdener mot budhistorikken (pass = svak hånd,
+    /// høyt bud = sterk hånd).
+    var budvekting = true
+
+    /// Skalerer søket etter maskinvaren: flere kjerner gir flere verdener og
+    /// dypere eksakt sluttspill innenfor samme tidsbudsjett.
+    static func automatisk() -> MesterKonfig {
+        var k = MesterKonfig()
+        if ProcessInfo.processInfo.activeProcessorCount >= 6 {
+            k.maksVerdener = 36
+            k.verdenerVedBud = 64
+            k.eksaktStikkGrense = 7
+        }
+        return k
+    }
 }
 
 /// Søkebasert toppspiller («President»-nivået). Tre grep gjør den sterk:
@@ -36,6 +51,9 @@ final class MesterAI {
     let sete: Int
     var konfig: MesterKonfig
     private var rng: SeededGenerator
+
+    /// Overstyring for benchmarks/AB-testing – brukes av AIPlayer om satt.
+    static var overstyrKonfig: MesterKonfig?
 
     init(sete: Int, konfig: MesterKonfig = MesterKonfig(), seed: UInt64? = nil) {
         self.sete = sete
@@ -63,16 +81,19 @@ final class MesterAI {
         let vurderSolo = lovlige.contains(.soloAmerikaner)
             && estimat + Double(regler.antallByttekort) * 0.4 >= Double(alleStikk) - 2.5
 
-        var deklStikk: [Int] = []
-        var passVerdier: [Double] = []
-        var soloKlart = 0
-        var soloTalt = 0
+        var deklStikk: [(stikk: Int, vekt: Double)] = []
+        var passVerdier: [(verdi: Double, vekt: Double)] = []
+        var soloKlart = 0.0
+        var soloTalt = 0.0
+        let profiler = BudProfil.fra(bids: engine.bids, minsteBud: regler.minsteBud)
 
         for _ in 0..<konfig.verdenerVedBud {
             let (hender, talon) = sampleUtdeling(
                 pool: Kortmaske.alle & ~minHånd,
                 perSete: regler.kortPerSpiller, minHånd: minHånd
             )
+            let vekt = budVekt(profiler: profiler, hender: hender,
+                               spiltAv: nil, stikkTotalt: regler.kortPerSpiller)
 
             // Scenario 1: jeg vinner budrunden med min beste farge (dekker
             // både tallbud og Amerikaner – samme lag, samme spill).
@@ -80,11 +101,11 @@ final class MesterAI {
                 hånd: minHånd, farge: heuristiskFarge, hender: hender,
                 talon: talon, regler: regler
             ) {
-                deklStikk.append(GrådigSpiller.lagStikk(plan, eksaktFra: konfig.eksaktStikkGrense))
+                deklStikk.append((GrådigSpiller.lagStikk(plan, eksaktFra: konfig.eksaktStikkGrense), vekt))
             }
 
             // Scenario 2: jeg passer, og den sterkeste motstanderen spiller.
-            passVerdier.append(passVerdi(hender: hender, talon: talon, regler: regler))
+            passVerdier.append((passVerdi(hender: hender, talon: talon, regler: regler), vekt))
 
             // Scenario 3: solo-amerikaner – alle stikkene alene, med trumf
             // og et valgfritt uttrekkskort i første stikk.
@@ -92,20 +113,21 @@ final class MesterAI {
                 hånd: minHånd, farge: heuristiskFarge, hender: hender,
                 talon: talon, regler: regler
             ) {
-                soloTalt += 1
+                soloTalt += vekt
                 if GrådigSpiller.lagStikk(solo, eksaktFra: konfig.eksaktStikkGrense) == alleStikk {
-                    soloKlart += 1
+                    soloKlart += vekt
                 }
             }
         }
 
-        let antall = Double(max(1, deklStikk.count))
-        let evPass = passVerdier.isEmpty ? 0 : passVerdier.reduce(0, +) / Double(passVerdier.count)
+        let deklVekt = max(1e-9, deklStikk.reduce(0) { $0 + $1.vekt })
+        let passVekt = max(1e-9, passVerdier.reduce(0) { $0 + $1.vekt })
+        let evPass = passVerdier.reduce(0) { $0 + $1.verdi * $1.vekt } / passVekt
         var besteAction = BidAction.pass
         var besteEV = evPass
 
-        if let b = minsteBud {
-            let p = Double(deklStikk.filter { $0 >= b }.count) / antall
+        if let b = minsteBud, !deklStikk.isEmpty {
+            let p = deklStikk.filter { $0.stikk >= b }.reduce(0) { $0 + $1.vekt } / deklVekt
             // Budvinneren vinner/taper det dobbelte av budet.
             let ev = Double(2 * b) * (2 * p - 1)
             if ev > besteEV {
@@ -115,7 +137,7 @@ final class MesterAI {
         }
         if lovlige.contains(.amerikaner), !deklStikk.isEmpty {
             // Amerikaner: laget må ta alle stikkene; budvinner ±målPoeng/2.
-            let p = Double(deklStikk.filter { $0 >= alleStikk }.count) / antall
+            let p = deklStikk.filter { $0.stikk >= alleStikk }.reduce(0) { $0 + $1.vekt } / deklVekt
             let ev = Double(regler.målPoeng / 2) * (2 * p - 1)
             if ev > besteEV {
                 besteAction = .amerikaner
@@ -123,7 +145,7 @@ final class MesterAI {
             }
         }
         if vurderSolo, soloTalt > 0 {
-            let p = Double(soloKlart) / Double(soloTalt)
+            let p = soloKlart / soloTalt
             let ev = Double(regler.målPoeng) * (2 * p - 1)
             if ev > besteEV {
                 besteAction = .soloAmerikaner
@@ -179,13 +201,16 @@ final class MesterAI {
         }
         guard !kandidater.isEmpty else { return [] }
 
-        var klarte = [Int](repeating: 0, count: kandidater.count)
-        var sumStikk = [Int](repeating: 0, count: kandidater.count)
+        var klarte = [Double](repeating: 0, count: kandidater.count)
+        var sumStikk = [Double](repeating: 0, count: kandidater.count)
+        let profiler = BudProfil.fra(bids: engine.bids, minsteBud: regler.minsteBud)
         for _ in 0..<konfig.verdenerVedBytte {
             let (hender, _) = sampleUtdeling(
                 pool: Kortmaske.alle & ~hånd16,
                 perSete: regler.kortPerSpiller, minHånd: hånd16
             )
+            let vekt = budVekt(profiler: profiler, hender: hender,
+                               spiltAv: nil, stikkTotalt: regler.kortPerSpiller)
             for (i, kandidat) in kandidater.enumerated() {
                 var h = hender
                 let minH = hånd16 & ~kandidat.vrak
@@ -205,8 +230,8 @@ final class MesterAI {
                     lagMaske: lag, budgiver: sete, pliktkort: plikt, førsteStikk: true
                 )
                 let stikk = GrådigSpiller.lagStikk(tilstand, eksaktFra: konfig.eksaktStikkGrense)
-                if stikk >= mål { klarte[i] += 1 }
-                sumStikk[i] += stikk
+                if stikk >= mål { klarte[i] += vekt }
+                sumStikk[i] += vekt * Double(stikk)
             }
         }
         let beste = kandidater.indices.max { a, b in
@@ -283,13 +308,16 @@ final class MesterAI {
         }
         guard !kandidater.isEmpty else { return nil }
 
-        var klarte = [Int](repeating: 0, count: kandidater.count)
-        var sumStikk = [Int](repeating: 0, count: kandidater.count)
+        var klarte = [Double](repeating: 0, count: kandidater.count)
+        var sumStikk = [Double](repeating: 0, count: kandidater.count)
+        let profiler = BudProfil.fra(bids: engine.bids, minsteBud: regler.minsteBud)
         for _ in 0..<konfig.verdenerVedBud {
             let (hender, _) = sampleUtdeling(
                 pool: Kortmaske.alle & ~minHånd & ~kastet,
                 perSete: regler.kortPerSpiller, minHånd: minHånd
             )
+            let vekt = budVekt(profiler: profiler, hender: hender,
+                               spiltAv: nil, stikkTotalt: regler.kortPerSpiller)
             for (i, kandidat) in kandidater.enumerated() {
                 let ønskeIdx = kandidat.ønsket.map(Kortmaske.indeks)
                 var lag: UInt8 = 1 << UInt8(sete)
@@ -303,8 +331,8 @@ final class MesterAI {
                     førsteStikk: true
                 )
                 let stikk = GrådigSpiller.lagStikk(tilstand, eksaktFra: konfig.eksaktStikkGrense)
-                if stikk >= mål { klarte[i] += 1 }
-                sumStikk[i] += stikk
+                if stikk >= mål { klarte[i] += vekt }
+                sumStikk[i] += vekt * Double(stikk)
             }
         }
         let beste = kandidater.indices.max { a, b in
@@ -333,9 +361,12 @@ final class MesterAI {
         while verdener < konfig.maksVerdener {
             if verdener >= konfig.minVerdener, Date() >= frist { break }
             guard let verden = innsikt.sampleVerden(rng: &rng) else { break }
+            // Verdener som strider mot budhistorikken teller mindre.
+            let vekt = budVekt(profiler: innsikt.budProfiler, hender: verden.hender,
+                               spiltAv: innsikt.spiltAvSete, stikkTotalt: innsikt.stikkTotalt)
             let dd = Dobbeltdummy()   // deles på tvers av kandidatene i samme verden
             for (i, kandidat) in kandidater.enumerated() {
-                sum[i] += vurder(kandidat: kandidat, verden: verden, innsikt: innsikt, dd: dd)
+                sum[i] += vekt * vurder(kandidat: kandidat, verden: verden, innsikt: innsikt, dd: dd)
             }
             verdener += 1
         }
@@ -384,9 +415,40 @@ final class MesterAI {
         case .amerikaner, .soloAmerikaner, .pass: mål = innsikt.stikkTotalt
         }
         let suksess = lagStikk >= mål
-        return innsikt.jegErBudgiverlag
-            ? (suksess ? 1000.0 : 0.0) + Double(lagStikk)
-            : (suksess ? 0.0 : 1000.0) + Double(innsikt.stikkTotalt - lagStikk)
+        if innsikt.jegErBudgiverlag {
+            return (suksess ? 1000.0 : 0.0) + Double(lagStikk)
+        }
+        // Forsvar: fell kontrakten først, ta forsvarsstikk deretter – og
+        // foretrekk egne stikk (egne poeng!) når det ellers står likt.
+        return (suksess ? 0.0 : 1000.0) + Double(innsikt.stikkTotalt - lagStikk)
+            + 0.3 * Double(perSete[innsikt.sete])
+    }
+
+    // MARK: - Budvekting
+
+    /// Hvor sannsynlig er denne verdenen gitt det setene meldte? En hånd som
+    /// er altfor svak for budet sitt – eller altfor sterk for passen sin –
+    /// vektes ned. Vurderingen bruker setets FULLE hånd (gjenværende + spilt).
+    private func budVekt(profiler: [BudProfil], hender: SIMD4<UInt64>,
+                         spiltAv: [UInt64]?, stikkTotalt: Int) -> Double {
+        guard konfig.budvekting else { return 1 }
+        var vekt = 1.0
+        for s in 0..<4 where s != sete {
+            let profil = profiler[s]
+            guard profil.harSignal else { continue }
+            let full = hender[s] | (spiltAv?[s] ?? 0)
+            guard full != 0 else { continue }
+            let est = AIPlayer.besteTrumf(hånd: Kortmaske.kortliste(full)).estimat
+            if profil.meldteAlle {
+                vekt *= exp(-0.5 * max(0, Double(stikkTotalt) - 2.0 - est))
+            } else if let n = profil.tallbud {
+                vekt *= exp(-0.6 * max(0, Double(n) - (est + 2.5)))
+            }
+            if let gulv = profil.passetVedGulv {
+                vekt *= exp(-0.4 * max(0, est + 2.0 - Double(gulv) - 1.5))
+            }
+        }
+        return max(vekt, 0.02)
     }
 
     // MARK: - Sampling før spillet

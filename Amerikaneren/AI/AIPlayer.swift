@@ -15,7 +15,9 @@ struct AIPlayer {
         self.seat = seat
         self.difficulty = difficulty
         self.personality = personality
-        self.mester = difficulty.spillerPerfekt ? MesterAI(sete: seat) : nil
+        self.mester = difficulty.spillerPerfekt
+            ? MesterAI(sete: seat, konfig: MesterAI.overstyrKonfig ?? .automatisk())
+            : nil
         self.nevro = difficulty.spillerPerfekt
             ? NevroHjerne.delt.map { NevroSpiller(sete: seat, hjerne: $0) }
             : nil
