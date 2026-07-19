@@ -1,5 +1,29 @@
 # Utviklingslogg
 
+## v0.8 – Husregler, byttekort, solo-amerikaner og nevralt nett
+
+- **Regelverket omlagt til eierens husregler**: byttekort-talong (12 kort
+  + 4 til budvinneren, skjult vrak), først til 100, Amerikaner med makker
+  og trumf (±50/±25), ny solo-amerikaner-melding (±100, valgfri
+  etterlysning), budvinner får alltid 2× makkerens sats, og forbud mot å
+  etterlyse vrakede kort. Alternativt partiformat med fast rundetall
+  (`GameRules.maksRunder`). Companion, online-protokoll, UI og tutorials
+  fulgt opp.
+- **MesterAI utvidet**: vrak-søk med simulerte kandidater, sampling som
+  modellerer den skjulte vrakhaugen, budvekting av verdener mot
+  budhistorikken, matchbevisst budgivning (varians når man ligger bak
+  sent), maskinvare-skalert søk og solo-uttrekkslogikk.
+- **NevroHjerne**: tre MLP-hoder (bud/vrak/spill) i ren Swift, destillert
+  fra 800 lærer-selvspillpartier og RL-finjustert med partiseier som
+  belønning, verdihode og destillasjonsanker. Sluttport på 2 000 ferske
+  runder valgte det destillerte nettet (selvspill-gevinsten overførte
+  ikke – porten fungerte). Vektene skipes innebygd; nettet foreslår vrak
+  i søket og er reservespiller.
+- **Målt (komplett system)**: 83 % seier i hele partier mot tre
+  «Vanskelig» (25 % = likt spill), 7,96 mot 5,22 poeng per runde, 89 %
+  kontrakter som budgiver. Egenskapsbasert motorfuzz verifiserer alle
+  poengregler uavhengig; 23 tester i CI.
+
 ## v0.7 – MesterAI: søkebot på President-nivå
 
 - **MesterAI** (`AI/MesterAI.swift`, `MesterVerden.swift`,

@@ -147,20 +147,21 @@ også på eldre telefoner.
 
 ### Målt styrke
 
-Benchmarks (release-bygg, faste frø) med sete 0 mot tre
-«Vanskelig»-heuristikker, sammenliknet med en «Vanskelig» i samme sete:
+Benchmarks (release-bygg, faste frø, gjeldende regler med byttekort og
+2×/1×-poeng) med sete 0 mot tre «Vanskelig»-heuristikker, sammenliknet
+med en «Vanskelig» i samme sete – komplett system med nett aktivt:
 
-- **Hele partier til 52 poeng:** MesterAI vant 20 av 40 partier (50 %),
-  mot 6 av 40 (15 %) for heuristikken – med 25 % som nøytralt utgangspunkt
-  for fire like spillere.
-- **200 enkeltrunder:** 4,08 poeng per runde mot 3,31 for heuristikken.
-  Som budgiver klarte MesterAI 26 av 28 kontrakter (93 %) med samme
-  snittbud (8,2), mot 28 av 34 (82 %) for heuristikken; i forsvar felte
-  den 30 av 107 kontrakter mot 24 av 106.
+- **Hele partier til 100 poeng:** MesterAI vant 25 av 30 partier (83 %),
+  mot 9 av 30 (30 %) for heuristikken – med 25 % som nøytralt
+  utgangspunkt for fire like spillere.
+- **150 enkeltrunder:** 7,96 poeng per runde mot 5,22 for heuristikken.
+  Som budgiver klarte MesterAI 68 av 76 kontrakter (89 %); som makker
+  25 av 26.
 
 Dobbeltdummy-løseren er i tillegg verifisert identisk med en
-brute-force-minimax på 800 tilfeldige stillinger, og hele runder
-fuzz-testes for lovlighet med blandede vanskelighetsgrader.
+brute-force-minimax på 800 tilfeldige stillinger, hele runder
+fuzz-testes for lovlighet, og en egenskapsbasert motorfuzz verifiserer
+alle poengregler uavhengig over tusenvis av tilfeldige runder.
 
 ## NevroHjerne – det nevrale nettet
 
