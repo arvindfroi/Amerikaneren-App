@@ -132,6 +132,19 @@ Tidsbruken styres av `MesterKonfig` (verdener, sluttspillgrense og et mykt
 tidsbudsjett på ~0,45 s per trekk), så President-motstanderne føles kjappe
 også på eldre telefoner.
 
-I målinger over enkeltrunder mot tre «Vanskelig»-motstandere leverer
-MesterAI klart flere poeng per runde enn heuristikken i samme sete, feller
-flere kontrakter i forsvar og feiler nesten aldri egne kontrakter.
+### Målt styrke
+
+Benchmarks (release-bygg, faste frø) med sete 0 mot tre
+«Vanskelig»-heuristikker, sammenliknet med en «Vanskelig» i samme sete:
+
+- **Hele partier til 52 poeng:** MesterAI vant 20 av 40 partier (50 %),
+  mot 6 av 40 (15 %) for heuristikken – med 25 % som nøytralt utgangspunkt
+  for fire like spillere.
+- **200 enkeltrunder:** 4,08 poeng per runde mot 3,31 for heuristikken.
+  Som budgiver klarte MesterAI 26 av 28 kontrakter (93 %) med samme
+  snittbud (8,2), mot 28 av 34 (82 %) for heuristikken; i forsvar felte
+  den 30 av 107 kontrakter mot 24 av 106.
+
+Dobbeltdummy-løseren er i tillegg verifisert identisk med en
+brute-force-minimax på 800 tilfeldige stillinger, og hele runder
+fuzz-testes for lovlighet med blandede vanskelighetsgrader.

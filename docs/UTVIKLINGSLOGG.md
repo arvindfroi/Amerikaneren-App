@@ -9,11 +9,11 @@
   transposisjonstabell og sekvensreduksjon) og simuleringsbasert
   budgivning/trumfvalg på forventet poengsum. Ingen juks: boten ser bare
   det setet lovlig vet, inkludert renons- og makkerplikt-slutninger.
-- Løseren er verifisert mot en brute-force-minimax på hundrevis av
-  tilfeldige stillinger, og hele runder fuzz-testes for lovlighet.
-  I rundemålinger mot tre «Vanskelig»-heuristikker gir MesterAI klart
-  flere poeng per runde, feiler nesten aldri egne kontrakter og feller
-  flere i forsvar. Dokumentert i docs/AI.md.
+- Løseren er verifisert mot en brute-force-minimax på 800 tilfeldige
+  stillinger, og hele runder fuzz-testes for lovlighet. Målt mot tre
+  «Vanskelig»-heuristikker vinner MesterAI 50 % av hele partier (mot
+  15 % for en «Vanskelig» i samme sete) og klarer 93 % av egne
+  kontrakter. Tall og metode i docs/AI.md.
 - `AIPlayer` ruter President-beslutninger til MesterAI og beholder
   heuristikken som sikkerhetsnett; øvrige nivåer er uendret.
 
