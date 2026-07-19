@@ -92,6 +92,12 @@ final class GameEngine {
     private(set) var rundeResultater: [RoundResult] = []
     private(set) var sisteRunde: RoundResult?
 
+    // Opptak: den utdelte starttilstanden beholdes gjennom runden, slik at
+    // en ferdigspilt runde kan lagres og spilles av på nytt (treningsdata).
+    private(set) var utdelteHender: [[Card]] = []
+    private(set) var utdeltTalon: [Card] = []
+    private(set) var førsteBudgiverIRunden: Int = 0
+
     init(rules: GameRules = GameRules()) {
         self.rules = rules
         self.scores = Array(repeating: 0, count: rules.antallSpillere)
@@ -103,14 +109,29 @@ final class GameEngine {
     // MARK: - Runde-oppsett
 
     func startRunde(seed: UInt64? = nil) {
-        precondition(phase == .venterPåStart || phase == .rundeFerdig)
         let stokk = Deck.stokket(seed: seed)
         let n = rules.antallSpillere
         let iSpill = stokk.count - rules.antallByttekort
-        hands = (0..<n).map { s in
+        let hender = (0..<n).map { s in
             stride(from: s, to: iSpill, by: n).map { stokk[$0] }.sortertForHånd()
         }
-        talon = Array(stokk.suffix(rules.antallByttekort))
+        startRunde(hender: hender, talon: Array(stokk.suffix(rules.antallByttekort)),
+                   førsteBudgiver: (dealer + 1) % n)
+    }
+
+    /// Starter en runde med en forhåndsbestemt utdeling – brukes av tester
+    /// og av avspilling av opptak (`Rundeopptak.spillAv`).
+    func startRunde(hender: [[Card]], talon nyTalon: [Card], førsteBudgiver: Int) {
+        precondition(phase == .venterPåStart || phase == .rundeFerdig)
+        precondition(hender.count == rules.antallSpillere)
+        precondition(hender.allSatisfy { $0.count == rules.kortPerSpiller })
+        precondition(nyTalon.count == rules.antallByttekort)
+        let n = rules.antallSpillere
+        hands = hender
+        talon = nyTalon
+        utdelteHender = hender
+        utdeltTalon = nyTalon
+        førsteBudgiverIRunden = førsteBudgiver
         kastet = []
         bids = []
         harPasset = []
@@ -128,7 +149,7 @@ final class GameEngine {
         stikkTatt = Array(repeating: 0, count: n)
         trickNummer = 0
         spilteKort = []
-        aktivBudgiver = (dealer + 1) % n
+        aktivBudgiver = førsteBudgiver
         phase = .budrunde
     }
 

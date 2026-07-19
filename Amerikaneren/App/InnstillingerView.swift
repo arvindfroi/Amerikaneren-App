@@ -51,6 +51,19 @@ struct InnstillingerView: View {
                 }
 
                 PapirPanel {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Toggle("Bidra til smartere motstandere", isOn: $appState.datadelingPå)
+                            .font(Theme.kroppFont(16))
+                            .foregroundStyle(Theme.blekk)
+                        Text("Deler anonyme partiopptak (kort, bud og trekk) som "
+                             + "treningsdata for AI-en. Aldri navn, aldri identitet. "
+                             + "Skrur du av, slettes alt som ligger klart til sending.")
+                            .font(Theme.kroppFont(12))
+                            .foregroundStyle(Theme.blekkSvak)
+                    }
+                }
+
+                PapirPanel {
                     HStack(spacing: 12) {
                         Text(appState.rankTier.emoji).font(.system(size: 34))
                         VStack(alignment: .leading, spacing: 1) {

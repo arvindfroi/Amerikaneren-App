@@ -35,6 +35,8 @@ final class GameViewModel: ObservableObject {
     private var aiOppgave: Task<Void, Never>?
     private let startTid = Date()
     private var harVunnetKravBud = false  // for kampanjescenarioer med budkrav
+    private var rundeopptak: [Rundeopptak] = []   // treningsdata (kun med samtykke)
+    private var partiLevert = false
 
     var mode: MatchMode { stage == nil ? .offline : .kampanje }
 
@@ -245,6 +247,9 @@ final class GameViewModel: ObservableObject {
     }
 
     private func håndterRundeSlutt() {
+        if let opptak = Rundeopptak(fra: engine) {
+            rundeopptak.append(opptak)
+        }
         if let runde = engine.sisteRunde, runde.budgiver == 0, runde.klarte,
            case .bud(let n) = runde.bud, let krav = stage?.kravMinsteBud, n >= krav {
             harVunnetKravBud = true
@@ -254,18 +259,39 @@ final class GameViewModel: ObservableObject {
             visSpillFerdig = true
             replikkVedSlutt()
             Feedback.spillSlutt(vant: jegVant)
+            leverTreningsdata()
             return
         }
         if engine.phase == .spillFerdig {
             visSpillFerdig = true
             replikkVedSlutt()
             Feedback.spillSlutt(vant: jegVant)
+            leverTreningsdata()
         } else {
             visRundeOppsummering = true
             if let runde = engine.sisteRunde {
                 Feedback.rundeSlutt(bra: runde.poengEndring[0] >= 0)
             }
         }
+    }
+
+    /// Leverer partiets rundeopptak til innsamlingen ved partislutt.
+    /// Innsamleren gjør ingenting uten samtykke, og opptakene er anonyme:
+    /// bare kort, bud og CPU-nivåer – aldri navn.
+    private func leverTreningsdata() {
+        guard !partiLevert, !rundeopptak.isEmpty else { return }
+        partiLevert = true
+        let seter = [Seteinfo(menneske: true, cpuNivå: nil)]
+            + motstandere.map { Seteinfo(menneske: false, cpuNivå: $0.difficulty.rawValue) }
+        let parti = Partiopptak(
+            regler: engine.rules,
+            modus: mode == .kampanje ? "kampanje" : "offline",
+            seter: seter,
+            runder: rundeopptak,
+            sluttPoeng: (0..<4).map { poeng(for: $0) },
+            vinner: vinnerSeat
+        )
+        Innsamler.standard.leverParti(parti)
     }
 
     private func replikkVedSlutt() {

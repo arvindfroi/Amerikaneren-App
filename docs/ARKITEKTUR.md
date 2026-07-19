@@ -41,7 +41,12 @@ så et view aldri kan sette spillet i ugyldig tilstand.
 | `Online/` | `GameCenterManager` (innlogging, matchmaking, `OnlineMessage`-protokoll over `GKMatch`) og lobby-view. |
 | `App/` | Inngang, hovedmeny, `AppState` (global tilstand + persistens). |
 | `Theme/` | Hele designspråket: farger, fonter, `BTButtonStyle`, `PapirPanel`, `SnakkeBoble`, portretter, `TrekkLinje`. |
-| `Tests/` | Enhetstester for motor og AI. |
+| `Innsamling/` | `Rundeopptak`/`Partiopptak` (rå, avspillbare partiopptak) og `Innsamler` (samtykke, kø, opplasting) – treningsdata, se docs/DATA.md. |
+| `Tests/` | Enhetstester for motor, AI og innsamling. |
+
+Utenfor app-mappen: `Tools/` (trenings- og benchmarkharness som
+symlenker app-kildene, se Tools/README.md) og `Backend/`
+(ingest-tjenesten for innsamlede partiopptak, se Backend/README.md).
 
 ## Dataflyt i et offline-parti
 

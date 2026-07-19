@@ -26,6 +26,15 @@ final class AppState: ObservableObject {
     @Published var storeKort: Bool {
         didSet { UserDefaults.standard.set(storeKort, forKey: "storeKort") }
     }
+    /// Samtykke til å dele anonyme partiopptak (kort, bud og trekk – aldri
+    /// navn) som treningsdata for AI-en. Av som standard; skrus den av
+    /// igjen tømmes den lokale sendekøen.
+    @Published var datadelingPå: Bool {
+        didSet {
+            UserDefaults.standard.set(datadelingPå, forKey: Innsamler.samtykkeNøkkel)
+            if !datadelingPå { Innsamler.standard.tømKø() }
+        }
+    }
 
     // Ranked / Elo
     @Published private(set) var eloRating: Int {
@@ -42,6 +51,7 @@ final class AppState: ObservableObject {
         lydPå = UserDefaults.standard.object(forKey: "lydPå") as? Bool ?? true
         haptikkPå = UserDefaults.standard.object(forKey: "haptikkPå") as? Bool ?? true
         storeKort = UserDefaults.standard.object(forKey: "storeKort") as? Bool ?? false
+        datadelingPå = UserDefaults.standard.bool(forKey: Innsamler.samtykkeNøkkel)
         eloRating = UserDefaults.standard.object(forKey: "eloRating") as? Int ?? EloCalculator.startRating
         partier = les([MatchRecord].self, fra: "partier.json") ?? []
         kampanje = les(CampaignProgress.self, fra: "kampanje.json") ?? CampaignProgress()

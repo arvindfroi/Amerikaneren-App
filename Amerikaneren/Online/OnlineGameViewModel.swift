@@ -197,6 +197,32 @@ final class OnlineGameViewModel: ObservableObject {
         }
     }
 
+    // MARK: - Treningsdata (kun verten, kun med samtykke)
+
+    private var opptakRunder: [Rundeopptak] = []
+    private var opptakLevert = false
+
+    /// Verten fanger hver ferdigspilte runde og leverer partiet til
+    /// innsamlingen ved partislutt. Opptakene er anonyme – bare kort og
+    /// bud, aldri navn eller Game Center-identiteter.
+    private func registrerOpptakOmRundeFerdig(_ engine: GameEngine) {
+        guard engine.phase == .rundeFerdig || engine.phase == .spillFerdig,
+              engine.rundeResultater.count > opptakRunder.count,
+              let opptak = Rundeopptak(fra: engine) else { return }
+        opptakRunder.append(opptak)
+        guard engine.phase == .spillFerdig, !opptakLevert else { return }
+        opptakLevert = true
+        let seter = (0..<engine.rules.antallSpillere).map { sete in
+            aiSeter[sete].map { Seteinfo(menneske: false, cpuNivå: $0.difficulty.rawValue) }
+                ?? Seteinfo(menneske: true, cpuNivå: nil)
+        }
+        Innsamler.standard.leverParti(Partiopptak(
+            regler: engine.rules, modus: "online", seter: seter,
+            runder: opptakRunder, sluttPoeng: engine.scores,
+            vinner: engine.vinnerSeat
+        ))
+    }
+
     /// Kun verten går videre til neste runde.
     func nesteRunde() {
         guard erVert, let engine, engine.phase == .rundeFerdig else { return }
@@ -258,6 +284,7 @@ final class OnlineGameViewModel: ObservableObject {
     /// får kun sin egen hånd og sine egne lovlige trekk.
     private func kringkast() {
         guard erVert, let engine else { return }
+        registrerOpptakOmRundeFerdig(engine)
         for (sete, spiller) in seteTilRemote {
             gc.send(.snapshot(bilde(for: sete, engine: engine)), til: [spiller])
         }

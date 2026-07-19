@@ -1,5 +1,33 @@
 # Utviklingslogg
 
+## v0.9 – Datainnsamling, backend og treningsverktøy i repo
+
+- **Partiopptak**: motoren husker utdelingen gjennom runden, og hver
+  ferdig runde kan fanges som et rått `Rundeopptak` (utdeling, budrunde,
+  vrak, trumf, alle 48 spilte kort, resultat) som spilles av og
+  regel-verifiseres trekk for trekk før det får bli data. Helt anonymt:
+  aldri navn eller ID-er, kun «menneske/CPU-nivå» per sete og dato.
+- **Innsamling med samtykke** (av som standard, ny bryter i
+  innstillingene): avgrenset kø på disk, batch-opplasting med
+  reprise-sikkerhet, giftige filer forkastes, køen slettes om samtykket
+  trekkes. Offline, kampanje og online (verten) dekkes.
+- **Backend-kode klar** i `Backend/valtown/` (Val Town/Deno + SQLite):
+  strukturell validering, idempotent lagring, døgn-nødbrems,
+  NDJSON-eksport for treneren. Hostingvalg utsatt – 5-minutters
+  deploy-oppskrift i Backend/README.md; appen samler lokalt inntil
+  endepunktet settes.
+- **Treningsverktøyene inn i repoet** (`Tools/trainer`, `Tools/harness`)
+  med symlenker til app-kildene – pipelinen overlever nå utenfor
+  utviklingsmiljøet. Ny `trainer importer` (innsamlede partier →
+  treningsdatasett, med full re-verifisering; tuklede partier avvises)
+  og `trainer syntetisk` (testdata i appens format). Kjeden testet
+  ende-til-ende.
+- **AI-veikart** i docs/AI.md: makker-modellering via policy-vekting,
+  åpent konvensjonslag, per-makker ferdighet, ekspert-iterasjon 2 og
+  nett-prior i søket. docs/DATA.md beskriver dataformat og personvern.
+- 4 nye tester (opptak-rundtur, tukle-avvisning, JSON-rundtur, kø);
+  27 totalt.
+
 ## v0.8 – Husregler, byttekort, solo-amerikaner og nevralt nett
 
 - **Regelverket omlagt til eierens husregler**: byttekort-talong (12 kort
