@@ -25,7 +25,7 @@ struct OnboardingView: View {
                     navneside.tag(1)
                     regelkort(
                         emoji: "🎯", tittel: "Byd på stikk",
-                        tekst: "Alle får 12 kort – fire ligger i talongen som budvinneren bytter med. I budrunden melder du hvor mange stikk du tror du klarer, eller roper «AMERIKANER!» for å ta alle alene."
+                        tekst: "Alle får 12 kort – fire ligger i talongen som budvinneren bytter med. I budrunden melder du hvor mange stikk laget ditt klarer – eller roper «AMERIKANER!» (alle stikk med makker) eller «SOLO!» (alle alene)."
                     ).tag(2)
                     regelkort(
                         emoji: "🤝", tittel: "Hemmelig makker",
@@ -33,7 +33,7 @@ struct OnboardingView: View {
                     ).tag(3)
                     regelkort(
                         emoji: "🏁", tittel: "Først til 100",
-                        tekst: "Klarer laget budet, får begge budpoengene. Feiler dere, trekkes de. Alle andre får ett poeng per stikk. Førstemann til 100 vinner!"
+                        tekst: "Klarer laget budet, får budvinneren dobbelt bud og makkeren budet i poeng. Feiler dere, trekkes det samme. Alle andre får ett poeng per stikk. Førstemann til 100 vinner!"
                     ).tag(4)
                     sisteSide.tag(5)
                 }

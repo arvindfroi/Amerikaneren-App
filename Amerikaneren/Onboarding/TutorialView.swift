@@ -148,7 +148,7 @@ struct TutorialView: View {
     }
 
     private var leksjon6: some View {
-        leksjon("Til slutt: meldingen «AMERIKANER!» betyr at du tar alle stikkene helt alene – uten trumf og uten makker. Klarer du det, får du 100 poeng og vinner på flekken. Feiler du… −100. Lykke til!") {
+        leksjon("Til slutt: «AMERIKANER!» betyr at laget ditt – du og makkeren – tar ALLE stikkene: +50 til deg og +25 til makker. Og tør du rope «SOLO-AMERIKANER!», tar du alle stikkene helt alene: 100 poeng og seier på flekken. Feiler du… −100. Lykke til!") {
             PapirPanel {
                 VStack(spacing: 10) {
                     Text("🇺🇸").font(.system(size: 64))

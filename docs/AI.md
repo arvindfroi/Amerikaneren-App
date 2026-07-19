@@ -29,9 +29,10 @@ estimat = håndestimat + 2.0 (forventet makkerbidrag)
 
 Byr laveste lovlige tallbud så lenge det er ≤ eget estimat, ellers pass.
 
-- **Amerikaner-melding**: krever solo-estimat ≥ 11,5 *og* et
-  personlighetsslag mot `storhetsdrøm`. På President meldes den kun med
-  reell dekning (≥ 12,5), uten terningkast.
+- **Amerikaner-melding** (alle stikk med makker) krever estimat nær
+  full pott pluss et personlighetsslag mot `storhetsdrøm`; solo-
+  amerikaner meldes bare med estimat over alle stikkene. På President
+  simuleres begge på forventet poengsum i stedet.
 - **Bløff**: bevisst nesten borte – man bløffer lite i Amerikaner. Kun en
   sjelden (`bløff × 0,15`) overbydning på ett hakk. Aldri på President.
 
@@ -130,9 +131,10 @@ Beslutningene bygger på tre teknikker:
    oftest berger budet vinner.
 
 Med byttekort-varianten modellerer samplingen også vrakhaugen: for alle
-andre enn budvinneren er de fire vrakede kortene ukjente, og det
-etterlyste kortet kan ligge dødt der – da spiller budgiveren uvitende
-alene, akkurat som rundt et ekte bord.
+andre enn budvinneren er de fire vrakede kortene ukjente og settes til
+side i hver samplet verden. Det etterlyste kortet kan derimot aldri ligge
+der – det er forbudt å ønske et vraket kort – så makkeren (eller
+motspilleren, ved solo) finnes alltid rundt bordet.
 
 I kortspillet måles hvert kandidatkort (etter sekvensreduksjon) over alle
 verdenene: budgiverlaget maksimerer sannsynligheten for å nå budet og

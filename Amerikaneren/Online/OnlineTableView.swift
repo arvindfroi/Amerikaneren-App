@@ -32,7 +32,7 @@ struct OnlineTableView: View {
         }
         .onChange(of: vm.snap?.trickNummer ?? 0) { _, _ in
             guard let snap = vm.snap, !snap.sisteStikk.isEmpty else { return }
-            let vinner = GameEngine.vinnerAvStikk(snap.sisteStikk, trumf: snap.erAmerikaner ? nil : snap.trumf)
+            let vinner = GameEngine.vinnerAvStikk(snap.sisteStikk, trumf: snap.trumf)
             Feedback.stikkAvgjort(mitt: vinner == vm.mittSete)
         }
         .onChange(of: erMinTur) { _, minTur in
@@ -103,18 +103,16 @@ struct OnlineTableView: View {
     private func toppLinje(_ snap: OnlineSnapshot) -> some View {
         HStack {
             if let trumf = snap.trumf {
-                Text("Trumf: \(trumf.navn) \(trumf.rawValue)")
+                Text(snap.erSolo == true ? "Trumf: \(trumf.navn) \(trumf.rawValue) – SOLO!"
+                     : snap.erAmerikaner ? "Trumf: \(trumf.navn) \(trumf.rawValue) – AMERIKANER!"
+                     : "Trumf: \(trumf.navn) \(trumf.rawValue)")
                     .font(Theme.kroppFont(15).weight(.bold))
-            } else if snap.erAmerikaner {
-                Text("AMERIKANER – uten trumf!")
-                    .font(Theme.kroppFont(15).weight(.bold))
-                    .foregroundStyle(Theme.rød)
             } else {
                 Text("Budrunde")
                     .font(Theme.kroppFont(15).weight(.bold))
             }
             Spacer()
-            if let ønsket = snap.ønsketKort, !snap.makkerAvslørt {
+            if let ønsket = snap.ønsketKort, snap.ønsketLagt != true {
                 Text("Etterlyst: \(ønsket.kortSymbol)")
                     .font(Theme.kroppFont(14))
                     .foregroundStyle(Theme.blekkSvak)
@@ -206,7 +204,7 @@ struct OnlineTableView: View {
                 }
             }
             if viserSisteStikk, !stikk.isEmpty {
-                let vinner = GameEngine.vinnerAvStikk(stikk, trumf: snap.erAmerikaner ? nil : snap.trumf)
+                let vinner = GameEngine.vinnerAvStikk(stikk, trumf: snap.trumf)
                 VStack {
                     Text(vinner == vm.mittSete ? "Du tok stikket!" : "\(vm.navn(for: vinner)) tok stikket")
                         .font(Theme.kroppFont(15).weight(.heavy))
@@ -256,6 +254,10 @@ struct OnlineTableView: View {
                         Button("AMERIKANER! 🇺🇸") { vm.byr(.amerikaner) }
                             .buttonStyle(BTButtonStyle(farge: Theme.rød, stor: false))
                     }
+                    if snap.lovligeBud.contains(.soloAmerikaner) {
+                        Button("SOLO! 🦅") { vm.byr(.soloAmerikaner) }
+                            .buttonStyle(BTButtonStyle(farge: Theme.blå, stor: false))
+                    }
                 }
             }
         }
@@ -264,14 +266,15 @@ struct OnlineTableView: View {
     @State private var valgtTrumf: Suit = .spar
 
     private func trumfPanel(_ snap: OnlineSnapshot) -> some View {
-        // Ønskbare kort kan regnes ut lokalt: alle kort i fargen man ikke har selv.
+        // Ønskbare kort regnes ut lokalt: kort i fargen man verken har på
+        // hånden eller har vraket (dødt kort kan ikke etterlyses).
         let ønskbare = Rank.allCases.reversed()
             .map { Card(suit: valgtTrumf, rank: $0) }
-            .filter { !snap.dinHånd.contains($0) }
+            .filter { !snap.dinHånd.contains($0) && !(snap.dineKastede ?? []).contains($0) }
 
         return PapirPanel {
             VStack(spacing: 12) {
-                Text("Du vant budrunden! Velg trumf:")
+                Text(snap.erSolo == true ? "Solo-amerikaner! Velg trumf:" : "Du vant budrunden! Velg trumf:")
                     .font(Theme.kroppFont(16).weight(.bold))
                     .foregroundStyle(Theme.blekk)
                 HStack(spacing: 10) {
@@ -295,7 +298,9 @@ struct OnlineTableView: View {
                         }
                     }
                 }
-                Text("Be om et kort – eieren blir din hemmelige makker:")
+                Text(snap.erSolo == true
+                     ? "Etterlys et kort som må legges i første stikk – eller spill uten:"
+                     : "Be om et kort – eieren blir din hemmelige makker:")
                     .font(Theme.kroppFont(13))
                     .foregroundStyle(Theme.blekkSvak)
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -309,6 +314,12 @@ struct OnlineTableView: View {
                         }
                     }
                     .padding(.vertical, 4)
+                }
+                if snap.erSolo == true {
+                    Button("Spill uten å etterlyse") {
+                        vm.velgerTrumf(suit: valgtTrumf, kort: nil)
+                    }
+                    .buttonStyle(BTButtonStyle(farge: Theme.blå, stor: false))
                 }
             }
         }

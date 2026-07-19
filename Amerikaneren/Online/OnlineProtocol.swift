@@ -42,7 +42,8 @@ enum OnlineAction: Codable {
     case bud(BidAction)
     /// Byttekort: budvinnerens vrak etter å ha tatt opp talongen.
     case bytt([Card])
-    case trumf(Suit, Card)
+    /// Trumfvalg med etterlysning; nil-kort er lov ved solo-amerikaner.
+    case trumf(Suit, Card?)
     case kort(Card)
 }
 
@@ -59,6 +60,10 @@ struct OnlineSnapshot: Codable {
     /// Kun satt når makkeren er avslørt – ellers hemmelig.
     var makkerSeat: Int?
     var erAmerikaner: Bool
+    /// Solo-amerikaner: budvinneren spiller helt alene (med trumf).
+    var erSolo: Bool?
+    /// Det etterlyste kortet er lagt (styrer «Etterlyst»-visningen).
+    var ønsketLagt: Bool?
     var budgiverSeat: Int?
     var currentTrick: [TrickPlay]
     var sisteStikk: [TrickPlay]
@@ -71,6 +76,9 @@ struct OnlineSnapshot: Codable {
     var lovligeBud: [BidAction]
     /// Antall byttekort som skal vrakes i byttefasen (kun budvinneren).
     var antallBytte: Int?
+    /// Budvinnerens eget vrak – trengs for å vite hva som kan etterlyses
+    /// (det er forbudt å ønske et vraket kort). Kun satt for budvinneren.
+    var dineKastede: [Card]?
 
     // Rundeslutt/partislutt
     var sisteRunde: RoundResult?

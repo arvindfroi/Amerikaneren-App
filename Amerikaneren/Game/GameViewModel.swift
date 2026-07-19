@@ -97,12 +97,12 @@ final class GameViewModel: ObservableObject {
     func menneskeByr(_ bud: BidAction) {
         guard engine.giBud(seat: 0, action: bud) else { return }
         varMinTur = false
-        bud == .amerikaner ? Feedback.amerikanerMeldt() : Feedback.budGitt()
+        bud == .amerikaner || bud == .soloAmerikaner ? Feedback.amerikanerMeldt() : Feedback.budGitt()
         bump()
         kjørAI()
     }
 
-    func menneskeVelgerTrumf(suit: Suit, ønsket: Card) {
+    func menneskeVelgerTrumf(suit: Suit, ønsket: Card?) {
         guard engine.velgTrumf(suit: suit, ønsket: ønsket) else { return }
         Feedback.budGitt()
         bump()
@@ -169,7 +169,10 @@ final class GameViewModel: ObservableObject {
                 guard !Task.isCancelled else { return }
                 let bud = ai.velgBud(engine: engine)
                 if bud == .amerikaner {
-                    sisteReplikk = (navn(for: seat), "AMERIKANER! Jeg tar alle tretten alene!")
+                    sisteReplikk = (navn(for: seat), "AMERIKANER! Vi tar alle stikkene!")
+                    Feedback.amerikanerMeldt()
+                } else if bud == .soloAmerikaner {
+                    sisteReplikk = (navn(for: seat), "SOLO-AMERIKANER! Jeg tar alle stikkene HELT alene!")
                     Feedback.amerikanerMeldt()
                 }
                 engine.giBud(seat: seat, action: bud)
@@ -194,9 +197,18 @@ final class GameViewModel: ObservableObject {
                 guard let seat = engine.budgiverSeat, seat != 0, let ai = aiSpillere[seat] else { sjekkDinTur(); return }
                 try? await Task.sleep(nanoseconds: 900_000_000)
                 guard !Task.isCancelled else { return }
-                if let (suit, ønsket) = ai.velgTrumfOgMakker(engine: engine) {
-                    engine.velgTrumf(suit: suit, ønsket: ønsket)
-                    sisteReplikk = (navn(for: seat), "\(suit.navn) er trumf. Jeg vil ha \(ønsket.beskrivelse.lowercased())!")
+                if let (suit, ønsket) = ai.velgTrumfOgMakker(engine: engine),
+                   engine.velgTrumf(suit: suit, ønsket: ønsket) {
+                    sisteReplikk = (navn(for: seat), ønsket.map {
+                        "\(suit.navn) er trumf. Jeg vil ha \($0.beskrivelse.lowercased())!"
+                    } ?? "\(suit.navn) er trumf – og jeg klarer meg helt selv!")
+                } else {
+                    // Sikkerhetsnett: velg første mulige trumf og etterlysning.
+                    for suit in Suit.allCases {
+                        if let ønsket = engine.kortSomKanØnskes(trumf: suit).first,
+                           engine.velgTrumf(suit: suit, ønsket: ønsket) { break }
+                        if engine.erSolo, engine.velgTrumf(suit: suit, ønsket: nil) { break }
+                    }
                 }
                 sjekkDinTur()
                 bump()

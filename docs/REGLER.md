@@ -20,31 +20,35 @@ og [kortregler.no/amerikaner](https://kortregler.no/amerikaner).
   byttekort, 13 uten).
 - Hvert bud må være høyere enn forrige; pass er alltid lov, og den som
   passer er ute av budrunden.
-- **«Amerikaner»** er en egen melding: ta alle stikkene alene, uten trumf
-  og uten makker. Den slår alle tallbud og kan ikke overbys – budrunden
-  avsluttes umiddelbart.
+- **«Amerikaner»** er en egen melding: laget (budvinner + hemmelig makker)
+  skal ta **alle stikkene** – med trumf og makker som vanlig. Den slår
+  alle tallbud, men kan overbys av solo-amerikaner.
+- **«Solo-amerikaner»** er den høyeste meldingen: ta alle stikkene **helt
+  alene**. Det spilles fortsatt med trumf, og man KAN etterlyse ett kort
+  som må legges i første stikk – men ingen makker og ingen hjelp etterpå.
+  Solo kan ikke overbys, så budrunden avsluttes umiddelbart.
 - Passer alle fire, deles det ut på nytt med neste giver.
 
 ## Byttekortene
 
 - Budvinneren tar opp talongen (16 kort på hånden) og **vraker 4
   valgfrie kort**, skjult for de andre. Vraket er ute av runden.
-- Dette gjelder også ved Amerikaner-melding (implementasjonsvalg – den
-  vanligste talong-praksisen er at budvinneren alltid får kortene).
+- Dette gjelder alle meldinger – også Amerikaner og solo-amerikaner.
 
 ## Trumf og hemmelig makker
 
-- Budvinneren velger trumffarge og **ber om ett kort** i den fargen som
-  de ikke har selv (typisk høyeste trumf de mangler).
-- Spilleren som sitter med kortet blir budvinnerens **hemmelige makker**.
-- Makkerplikt: i **første stikk** må makkeren legge det etterlyste kortet
-  ved første lovlige anledning (`GameEngine.lovligeKort` returnerer da kun
-  det kortet). Da avsløres makkeren for alle.
-- Motoren nekter budvinneren å be om et kort de selv har på hånden – men
-  **ikke** et kort de selv vraket: å etterlyse et dødt kort er en bevisst
-  (og lovlig) måte å spille alene på. Ligger det etterlyste kortet i
-  vraket uten at budvinneren visste det, spiller budvinneren uvitende
-  alene – ingen andre får vite at kortet er dødt.
+- Budvinneren velger trumffarge og **ber om ett kort** i den fargen
+  (typisk høyeste trumf de mangler).
+- Ved tallbud og Amerikaner blir spilleren som sitter med kortet
+  budvinnerens **hemmelige makker**. Ved solo-amerikaner er
+  etterlysningen valgfri og gir ingen makker – kortet må bare legges.
+- Makkerplikt: i **første stikk** må den som har kortet legge det ved
+  første lovlige anledning (`GameEngine.lovligeKort` returnerer da kun
+  det kortet). Da avsløres makkeren for alle – og «det første stikket»
+  er i praksis stikket der kortet tvinges fram; vinneren av det (som
+  regel makkeren, med den høye trumfen) spiller ut i neste stikk.
+- Det er **ikke lov** å etterlyse et kort man har på hånden eller selv
+  har vraket – det etterlyste kortet sitter alltid hos en motspiller.
 
 ## Stikkspillet
 
@@ -52,30 +56,36 @@ og [kortregler.no/amerikaner](https://kortregler.no/amerikaner).
   (trumfe eller kaste).
 - Stikket vinnes av høyeste trumf, eller høyeste kort i utspillsfargen
   om ingen trumf er lagt. Vinneren spiller ut i neste stikk.
-- Ved Amerikaner-melding spilles hele runden **uten trumf**.
+- Det spilles med trumf i alle runder – også ved Amerikaner og
+  solo-amerikaner.
 
 ## Poeng
 
-| Situasjon | Budgiver + makker | Øvrige spillere |
-|-----------|-------------------|-----------------|
-| Laget tar minst budet i stikk | **+bud** hver | +1 per eget stikk |
-| Laget feiler | **−bud** hver | +1 per eget stikk |
-| Amerikaner klart (alle stikk) | +100 til solisten | (har null stikk) |
-| Amerikaner feilet | −100 til solisten | +1 per eget stikk |
+Budvinneren får alltid **dobbelt så mye** som makkeren.
 
-- Budgiverlaget får poeng lik **budet**, ikke antall stikk – overstikk gir
-  ingenting ekstra (slik begge kildene beskriver).
+| Situasjon | Budvinner | Makker | Øvrige spillere |
+|-----------|-----------|--------|-----------------|
+| Tallbud n klart | **+2n** | **+n** | +1 per eget stikk |
+| Tallbud n feilet | **−2n** | **−n** | +1 per eget stikk |
+| Amerikaner klart (alle stikk) | **+50** | **+25** | (har null stikk) |
+| Amerikaner feilet | **−50** | **−25** | +1 per eget stikk |
+| Solo-amerikaner klart | **+100** | – | (har null stikk) |
+| Solo-amerikaner feilet | **−100** | – | +1 per eget stikk |
+
+- Budlaget får poeng etter **budet**, ikke antall stikk – overstikk gir
+  ingenting ekstra.
+- Amerikaner-satsene skaleres med målet: ±målPoeng/2 og ±målPoeng/4
+  (solo ±målPoeng), så en klart solo-amerikaner vinner alltid på flekken.
 - **Først til 100 poeng vinner.** Sjekkes etter hver runde.
 - Ved poenglikhet på/over 100 i samme runde vinner budgiversiden fra den
   runden (vanlig husregel; kildene sier ikke noe eksplisitt om likhet).
 
-## Bevisste valg og avvik
+## Bevisste valg og avvik (husregler)
 
-- Målet er endret fra kildenes 52 til **100 poeng**, og
-  Amerikaner-gevinsten er skalert tilsvarende (±100) slik at en klart
-  Amerikaner fortsatt vinner partiet på flekken.
-- Byttekort-varianten er slått **på** som standard (kortregler.no
-  beskriver den som valgfri regel).
+- Reglene over følger husreglene til spillets eier der de avviker fra
+  kildene: byttekort som standard, mål på 100 poeng, Amerikaner med
+  makker/trumf pluss egen solo-melding, dobbel poengsats til budvinner,
+  og forbud mot å etterlyse vrakede kort.
 - 3-, 5- og 6-spillervarianter av selve motoren er ikke implementert
   (companion-modusen dekker dem for fysisk spill). `GameRules` er
   parametrisert på spillertall, så det er forberedt.

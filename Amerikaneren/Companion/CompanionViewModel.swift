@@ -7,13 +7,13 @@ final class CompanionViewModel: ObservableObject {
     struct FørtRunde: Codable {
         var budgiver: Int
         var makker: Int?
-        var bud: Int            // 1000 = Amerikaner
+        var bud: Int            // 1000 = Amerikaner, 2000 = solo-amerikaner
         var klarte: Bool
         var stikk: [Int]
         var poengEndring: [Int]
 
         func beskrivelse(spillere: [String]) -> String {
-            let budTekst = bud >= 1000 ? "Amerikaner" : "\(bud) stikk"
+            let budTekst = bud >= 2000 ? "Solo-amerikaner" : bud >= 1000 ? "Amerikaner" : "\(bud) stikk"
             var tekst = "\(spillere[budgiver]): \(budTekst)"
             if let makker { tekst += " (m/ \(spillere[makker]))" }
             return tekst
@@ -36,6 +36,7 @@ final class CompanionViewModel: ObservableObject {
     @Published var makker = -1
     @Published var bud = 5
     @Published var erAmerikaner = false
+    @Published var erSolo = false
     @Published var klarte = true
     @Published var stikk: [Int] = []
 
@@ -71,18 +72,18 @@ final class CompanionViewModel: ObservableObject {
         partiPågår = true
     }
 
+    /// Poengregler: budvinneren får alltid dobbelt av makkeren.
+    /// Tallbud n: ±2n / ±n. Amerikaner: ±målPoeng/2 / ±målPoeng/4.
+    /// Solo-amerikaner: ±målPoeng til solisten alene.
     func førRunde() {
         var endring = Array(repeating: 0, count: spillere.count)
-        let budVerdi = erAmerikaner ? 1000 : bud
-        let makkerIndex = erAmerikaner || makker == budgiver ? nil : (makker >= 0 ? makker : nil)
+        let budVerdi = erSolo ? 2000 : erAmerikaner ? 1000 : bud
+        let makkerIndex = erSolo || makker == budgiver ? nil : (makker >= 0 ? makker : nil)
 
-        if erAmerikaner {
-            endring[budgiver] = klarte ? målPoeng : -målPoeng
-        } else {
-            let lagPoeng = klarte ? bud : -bud
-            endring[budgiver] = lagPoeng
-            if let makkerIndex { endring[makkerIndex] = lagPoeng }
-        }
+        let budgiverPoeng = erSolo ? målPoeng : erAmerikaner ? målPoeng / 2 : bud * 2
+        let makkerPoeng = erAmerikaner ? målPoeng / 4 : bud
+        endring[budgiver] = klarte ? budgiverPoeng : -budgiverPoeng
+        if let makkerIndex { endring[makkerIndex] = klarte ? makkerPoeng : -makkerPoeng }
         for i in spillere.indices where i != budgiver && i != makkerIndex {
             endring[i] += stikk[i]
         }
@@ -98,6 +99,7 @@ final class CompanionViewModel: ObservableObject {
         budgiver = (budgiver + 1) % spillere.count
         makker = -1
         erAmerikaner = false
+        erSolo = false
         klarte = true
     }
 

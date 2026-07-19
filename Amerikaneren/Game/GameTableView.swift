@@ -64,21 +64,19 @@ struct GameTableView: View {
         HStack {
             if let trumf = vm.engine.trumf {
                 Label {
-                    Text("Trumf: \(trumf.navn)")
+                    Text(vm.engine.erSolo ? "Trumf: \(trumf.navn) – SOLO!"
+                         : vm.engine.erAmerikaner ? "Trumf: \(trumf.navn) – AMERIKANER!"
+                         : "Trumf: \(trumf.navn)")
                 } icon: {
                     Text(trumf.rawValue).foregroundStyle(trumf.erRød ? Theme.rød : Theme.blekk)
                 }
                 .font(Theme.kroppFont(15).weight(.bold))
-            } else if vm.engine.erAmerikaner {
-                Text("AMERIKANER – uten trumf!")
-                    .font(Theme.kroppFont(15).weight(.bold))
-                    .foregroundStyle(Theme.rød)
             } else {
                 Text("Budrunde")
                     .font(Theme.kroppFont(15).weight(.bold))
             }
             Spacer()
-            if let ønsket = vm.engine.ønsketKort, !vm.engine.makkerAvslørt {
+            if let ønsket = vm.engine.ønsketKort, !vm.engine.ønsketLagt {
                 Text("Etterlyst: \(ønsket.kortSymbol)")
                     .font(Theme.kroppFont(14))
                     .foregroundStyle(Theme.blekkSvak)
@@ -162,14 +160,15 @@ struct GameTableView: View {
     /// Budlagets fremdrift mot budet, basert på det som er offentlig kjent
     /// (uavslørt makkers stikk telles ikke med).
     private var budlagFremdrift: String? {
-        guard vm.engine.phase == .spill, !vm.engine.erAmerikaner,
-              let budgiver = vm.engine.budgiverSeat,
-              case .bud(let mål)? = vm.engine.høyesteBud?.action else { return nil }
+        guard vm.engine.phase == .spill, let budgiver = vm.engine.budgiverSeat,
+              let bud = vm.engine.høyesteBud?.action else { return nil }
+        let mål: Int
+        if case .bud(let n) = bud { mål = n } else { mål = vm.engine.rules.kortPerSpiller }
         var lagStikk = vm.engine.stikkTatt[budgiver]
-        if vm.engine.makkerAvslørt, let makker = vm.engine.makkerSeat {
+        if !vm.engine.erSolo, vm.engine.makkerAvslørt, let makker = vm.engine.makkerSeat {
             lagStikk += vm.engine.stikkTatt[makker]
         }
-        return "Budlaget: \(lagStikk)/\(mål)"
+        return vm.engine.erSolo ? "Solisten: \(lagStikk)/\(mål)" : "Budlaget: \(lagStikk)/\(mål)"
     }
 
     // MARK: - Midten

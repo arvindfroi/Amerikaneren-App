@@ -22,12 +22,14 @@ struct MesterKonfig {
 ///
 /// 1. **Determinisert Monte Carlo**: de ukjente kortene samples i mange
 ///    mulige verdener som stemmer med alt setet lovlig vet (renonser,
-///    makkerplikt-slutninger, hvem som kan ha det etterlyste kortet – og
-///    at vrakede byttekort kan skjule det).
+///    makkerplikt-slutninger, hvem som kan ha det etterlyste kortet og
+///    hvilke kort som kan ligge i vraket).
 /// 2. **Eksakt sluttspill**: hver verden spilles grådig fram til få stikk
 ///    gjenstår, og resten løses optimalt med dobbeltdummy-søk.
-/// 3. **Simulerte valg**: bud, byttekort-vrak, trumf og makkerkort
-///    sammenliknes på forventet resultat over de samme samplede verdenene.
+/// 3. **Simulerte valg**: bud, byttekort-vrak, trumf og etterlysning
+///    sammenliknes på forventet poengsum over de samme samplede verdenene –
+///    med de riktige poengsatsene (2×bud/1×bud, Amerikaner ±50/±25, solo
+///    ±100 ved mål på 100).
 ///
 /// Den ser aldri skjulte kort – all innsikt kommer fra `Spillinnsikt`.
 final class MesterAI {
@@ -54,16 +56,17 @@ final class MesterAI {
             return nil
         }.min()
 
-        // Amerikaner vurderes bare når hånden i det hele tatt er i nærheten –
-        // ellers er utfallet −målPoeng gitt på forhånd.
         let (heuristiskFarge, estimat) = AIPlayer.besteTrumf(hånd: hånd)
-        let vurderAmerikaner = lovlige.contains(.amerikaner)
-            && estimat + Double(regler.antallByttekort) * 0.4 >= 10.0
+        let alleStikk = regler.maksBud
+        // Solo-amerikaner simuleres bare når hånden er i nærheten av å bære
+        // alle stikkene alene – ellers er −målPoeng gitt på forhånd.
+        let vurderSolo = lovlige.contains(.soloAmerikaner)
+            && estimat + Double(regler.antallByttekort) * 0.4 >= Double(alleStikk) - 2.5
 
         var deklStikk: [Int] = []
         var passVerdier: [Double] = []
-        var amerikanerKlart = 0
-        var amerikanerTalt = 0
+        var soloKlart = 0
+        var soloTalt = 0
 
         for _ in 0..<konfig.verdenerVedBud {
             let (hender, talon) = sampleUtdeling(
@@ -71,7 +74,8 @@ final class MesterAI {
                 perSete: regler.kortPerSpiller, minHånd: minHånd
             )
 
-            // Scenario 1: jeg vinner budrunden med min beste farge.
+            // Scenario 1: jeg vinner budrunden med min beste farge (dekker
+            // både tallbud og Amerikaner – samme lag, samme spill).
             if let plan = deklarasjonsplan(
                 hånd: minHånd, farge: heuristiskFarge, hender: hender,
                 talon: talon, regler: regler
@@ -82,22 +86,15 @@ final class MesterAI {
             // Scenario 2: jeg passer, og den sterkeste motstanderen spiller.
             passVerdier.append(passVerdi(hender: hender, talon: talon, regler: regler))
 
-            // Scenario 3: Amerikaner – alle stikkene alene, uten trumf.
-            if vurderAmerikaner {
-                var minH = minHånd | talon
-                if regler.antallByttekort > 0 {
-                    minH &= ~Self.heuristiskVrak(hånd: minH, antall: regler.antallByttekort, trumfFarge: nil)
-                }
-                var soloHender = hender
-                soloHender[sete] = minH
-                let solo = Spilltilstand(
-                    hender: soloHender, leder: sete, pågående: [], trumfFarge: nil,
-                    lagMaske: 1 << UInt8(sete), budgiver: sete,
-                    pliktkort: nil, førsteStikk: true
-                )
-                amerikanerTalt += 1
-                if GrådigSpiller.lagStikk(solo, eksaktFra: konfig.eksaktStikkGrense) == regler.kortPerSpiller {
-                    amerikanerKlart += 1
+            // Scenario 3: solo-amerikaner – alle stikkene alene, med trumf
+            // og et valgfritt uttrekkskort i første stikk.
+            if vurderSolo, let solo = soloPlan(
+                hånd: minHånd, farge: heuristiskFarge, hender: hender,
+                talon: talon, regler: regler
+            ) {
+                soloTalt += 1
+                if GrådigSpiller.lagStikk(solo, eksaktFra: konfig.eksaktStikkGrense) == alleStikk {
+                    soloKlart += 1
                 }
             }
         }
@@ -109,17 +106,27 @@ final class MesterAI {
 
         if let b = minsteBud {
             let p = Double(deklStikk.filter { $0 >= b }.count) / antall
-            let ev = Double(b) * (2 * p - 1)
+            // Budvinneren vinner/taper det dobbelte av budet.
+            let ev = Double(2 * b) * (2 * p - 1)
             if ev > besteEV {
                 besteAction = .bud(b)
                 besteEV = ev
             }
         }
-        if vurderAmerikaner, amerikanerTalt > 0 {
-            let p = Double(amerikanerKlart) / Double(amerikanerTalt)
-            let ev = Double(engine.rules.målPoeng) * (2 * p - 1)
+        if lovlige.contains(.amerikaner), !deklStikk.isEmpty {
+            // Amerikaner: laget må ta alle stikkene; budvinner ±målPoeng/2.
+            let p = Double(deklStikk.filter { $0 >= alleStikk }.count) / antall
+            let ev = Double(regler.målPoeng / 2) * (2 * p - 1)
             if ev > besteEV {
                 besteAction = .amerikaner
+                besteEV = ev
+            }
+        }
+        if vurderSolo, soloTalt > 0 {
+            let p = Double(soloKlart) / Double(soloTalt)
+            let ev = Double(regler.målPoeng) * (2 * p - 1)
+            if ev > besteEV {
+                besteAction = .soloAmerikaner
                 besteEV = ev
             }
         }
@@ -129,8 +136,9 @@ final class MesterAI {
     // MARK: - Byttekort
 
     /// Hvilke kort vrakes: kandidat-vrak genereres for de beste trumffargene
-    /// (behold trumf/ess, tøm korte sidefarger for renons) og spilles ut mot
-    /// samplede verdener; det vraket som oftest berger budet vinner.
+    /// (behold trumf/ess, tøm korte sidefarger for renons – pluss nettets
+    /// forslag) og spilles ut mot samplede verdener; vraket som oftest
+    /// berger meldingen vinner.
     func velgByttekort(engine: GameEngine) -> [Card] {
         let regler = engine.rules
         guard engine.phase == .byttekort, engine.budgiverSeat == sete,
@@ -142,20 +150,15 @@ final class MesterAI {
         if case .bud(let n) = budAction { mål = n } else { mål = regler.kortPerSpiller }
 
         // Trumfkandidater: de to beste fargene på den store hånden.
-        let trumfKandidater: [Int?]
-        if engine.erAmerikaner {
-            trumfKandidater = [nil]
-        } else {
-            let rangerte = Kortmaske.farger
-                .map { suit in (Kortmaske.fargeIndeks(suit), AIPlayer.estimerStikk(hånd: engine.hands[sete], trumf: suit)) }
-                .sorted { $0.1 > $1.1 }
-            trumfKandidater = rangerte.prefix(2).map { Optional($0.0) }
-        }
+        let rangerte = Kortmaske.farger
+            .map { suit in (Kortmaske.fargeIndeks(suit), AIPlayer.estimerStikk(hånd: engine.hands[sete], trumf: suit)) }
+            .sorted { $0.1 > $1.1 }
+        let trumfKandidater = rangerte.prefix(2).map(\.0)
 
-        var kandidater: [(trumf: Int?, vrak: UInt64)] = []
+        var kandidater: [(trumf: Int, vrak: UInt64)] = []
         var sett = Set<UInt64>()
-        func leggTil(_ trumf: Int?, _ vrak: UInt64) {
-            let nøkkel = vrak | (UInt64((trumf ?? 4) + 1) << 56)
+        func leggTil(_ trumf: Int, _ vrak: UInt64) {
+            let nøkkel = vrak | (UInt64(trumf + 1) << 56)
             if sett.insert(nøkkel).inserted {
                 kandidater.append((trumf, vrak))
             }
@@ -185,17 +188,17 @@ final class MesterAI {
             )
             for (i, kandidat) in kandidater.enumerated() {
                 var h = hender
-                h[sete] = hånd16 & ~kandidat.vrak
+                let minH = hånd16 & ~kandidat.vrak
+                h[sete] = minH
                 var lag: UInt8 = 1 << UInt8(sete)
                 var plikt: Int?
-                if let trumf = kandidat.trumf {
-                    // Be om høyeste trumf jeg ikke så i talongen – den lever
-                    // garantert hos en motstander.
-                    if let ønske = høyesteManglende(i: trumf, utenfor: hånd16),
-                       let makker = eier(av: ønske, i: h) {
-                        lag |= 1 << UInt8(makker)
-                        plikt = ønske
-                    }
+                if engine.erSolo {
+                    // Valgfritt uttrekk: en trumf jeg selv kan stikke over.
+                    plikt = soloUttrekk(farge: kandidat.trumf, minHånd: minH, sett: hånd16)
+                } else if let ønske = høyesteManglende(i: kandidat.trumf, utenfor: hånd16),
+                          let makker = eier(av: ønske, i: h) {
+                    lag |= 1 << UInt8(makker)
+                    plikt = ønske
                 }
                 let tilstand = Spilltilstand(
                     hender: h, leder: sete, pågående: [], trumfFarge: kandidat.trumf,
@@ -249,22 +252,32 @@ final class MesterAI {
             .reduce(0) { $0 | (1 << UInt64($1)) }
     }
 
-    // MARK: - Trumf og makker
+    // MARK: - Trumf og etterlysning
 
-    func velgTrumfOgMakker(engine: GameEngine) -> (Suit, Card)? {
+    /// Trumfvalg og etterlysning simulert per kandidat. Ved tallbud og
+    /// Amerikaner er etterlysningen makkeren (høyeste manglende trumf);
+    /// ved solo prøves både ingen etterlysning og et uttrekkskort man selv
+    /// kan stikke over.
+    func velgTrumfOgMakker(engine: GameEngine) -> (Suit, Card?)? {
         guard engine.phase == .velgTrumf, engine.budgiverSeat == sete,
-              engine.rules.antallSpillere == 4 else { return nil }
-        guard case .bud(let mål)? = engine.høyesteBud?.action else { return nil }
+              engine.rules.antallSpillere == 4,
+              let budAction = engine.høyesteBud?.action else { return nil }
         let regler = engine.rules
+        let mål: Int
+        if case .bud(let n) = budAction { mål = n } else { mål = regler.kortPerSpiller }
         let minHånd = Kortmaske.maske(engine.hands[sete])
         let kastet = Kortmaske.maske(engine.kastet)
 
-        // Kandidat per farge: be om det høyeste trumfkortet man mangler –
-        // men aldri et kort man selv la i vraket (da spilte man jo alene).
-        var kandidater: [(suit: Suit, ønsket: Card)] = []
+        var kandidater: [(suit: Suit, ønsket: Card?)] = []
         for suit in Kortmaske.farger {
             let ønskbare = engine.kortSomKanØnskes(trumf: suit)
-            if let ønsket = ønskbare.first(where: { !engine.kastet.contains($0) }) ?? ønskbare.first {
+            if engine.erSolo {
+                kandidater.append((suit, nil))
+                let fargeIdx = Kortmaske.fargeIndeks(suit)
+                if let uttrekk = soloUttrekk(farge: fargeIdx, minHånd: minHånd, sett: minHånd | kastet) {
+                    kandidater.append((suit, Kortmaske.kort(uttrekk)))
+                }
+            } else if let ønsket = ønskbare.first {
                 kandidater.append((suit, ønsket))
             }
         }
@@ -278,13 +291,15 @@ final class MesterAI {
                 perSete: regler.kortPerSpiller, minHånd: minHånd
             )
             for (i, kandidat) in kandidater.enumerated() {
-                let ønskeIdx = Kortmaske.indeks(kandidat.ønsket)
-                let makker = eier(av: ønskeIdx, i: hender)
+                let ønskeIdx = kandidat.ønsket.map(Kortmaske.indeks)
+                var lag: UInt8 = 1 << UInt8(sete)
+                if !engine.erSolo, let ønskeIdx, let makker = eier(av: ønskeIdx, i: hender) {
+                    lag |= 1 << UInt8(makker)
+                }
                 let tilstand = Spilltilstand(
                     hender: hender, leder: sete, pågående: [],
                     trumfFarge: Kortmaske.fargeIndeks(kandidat.suit),
-                    lagMaske: 1 << UInt8(sete) | (makker.map { 1 << UInt8($0) } ?? 0),
-                    budgiver: sete, pliktkort: makker != nil ? ønskeIdx : nil,
+                    lagMaske: lag, budgiver: sete, pliktkort: ønskeIdx,
                     førsteStikk: true
                 )
                 let stikk = GrådigSpiller.lagStikk(tilstand, eksaktFra: konfig.eksaktStikkGrense)
@@ -343,7 +358,7 @@ final class MesterAI {
 
     /// Verdien av å legge `kandidat` i den samplede verdenen: spill grådig
     /// fram til sluttspillgrensen, løs resten eksakt, og mål resultatet mot
-    /// budet. Budgiverlaget teller suksess først og stikk deretter;
+    /// meldingen. Budgiverlaget teller suksess først og stikk deretter;
     /// forsvaret det motsatte.
     private func vurder(kandidat: Int, verden: Verden, innsikt: Spillinnsikt, dd: Dobbeltdummy) -> Double {
         var t = Spilltilstand(
@@ -366,7 +381,7 @@ final class MesterAI {
         let mål: Int
         switch innsikt.bud {
         case .bud(let n): mål = n
-        case .amerikaner, .pass: mål = innsikt.stikkTotalt
+        case .amerikaner, .soloAmerikaner, .pass: mål = innsikt.stikkTotalt
         }
         let suksess = lagStikk >= mål
         return innsikt.jegErBudgiverlag
@@ -407,6 +422,21 @@ final class MesterAI {
         return nil
     }
 
+    /// Solo-uttrekk: høyeste trumf utenfor `sett` (hånd + vrak) som ligger
+    /// UNDER mitt eget toppkort i fargen – den kan tvinges fram i første
+    /// stikk og stikkes over.
+    private func soloUttrekk(farge: Int, minHånd: UInt64, sett: UInt64) -> Int? {
+        let mine = minHånd & Kortmaske.fargeMaske(farge)
+        guard mine != 0 else { return nil }
+        let minTopp = Kortmaske.høyeste(mine)
+        for valør in stride(from: 12, through: 0, by: -1) {
+            let idx = farge * 13 + valør
+            if idx >= minTopp { continue }
+            if sett & (1 << UInt64(idx)) == 0 { return idx }
+        }
+        return nil
+    }
+
     /// Tilstanden der jeg deklarerer med gitt trumffarge i en samplet verden:
     /// talongen tas opp, et heuristisk vrak legges bort, og makkeren er den
     /// som har det høyeste trumfkortet jeg aldri så.
@@ -426,6 +456,26 @@ final class MesterAI {
             hender: h, leder: sete, pågående: [], trumfFarge: fargeIdx,
             lagMaske: 1 << UInt8(sete) | 1 << UInt8(makker),
             budgiver: sete, pliktkort: ønskeIdx, førsteStikk: true
+        )
+    }
+
+    /// Solo-scenario i en samplet verden: alene med trumf, og et valgfritt
+    /// uttrekkskort som må legges i første stikk.
+    private func soloPlan(
+        hånd: UInt64, farge: Suit, hender: SIMD4<UInt64>, talon: UInt64, regler: GameRules
+    ) -> Spilltilstand? {
+        let fargeIdx = Kortmaske.fargeIndeks(farge)
+        var minH = hånd | talon
+        if regler.antallByttekort > 0 {
+            minH &= ~Self.heuristiskVrak(hånd: minH, antall: regler.antallByttekort, trumfFarge: fargeIdx)
+        }
+        var h = hender
+        h[sete] = minH
+        let uttrekk = soloUttrekk(farge: fargeIdx, minHånd: minH, sett: hånd | talon)
+        return Spilltilstand(
+            hender: h, leder: sete, pågående: [], trumfFarge: fargeIdx,
+            lagMaske: 1 << UInt8(sete), budgiver: sete,
+            pliktkort: uttrekk, førsteStikk: true
         )
     }
 
@@ -464,7 +514,7 @@ final class MesterAI {
 
         let deresBud = max(regler.minsteBud, min(regler.maksBud, Int(besteEstimat.rounded())))
         if makker == sete {
-            // Jeg blir med på laget: gevinsten er budet – eller tapet av det.
+            // Jeg blir med på laget: makkeren vinner eller taper budet (1×).
             let lagStikk = perSete[besteSete] + perSete[sete]
             return lagStikk >= deresBud ? Double(deresBud) : -Double(deresBud)
         }

@@ -66,9 +66,15 @@ final class GameEngine {
     // Trumf og makker
     private(set) var trumf: Suit?
     private(set) var ønsketKort: Card?
+    private(set) var ønsketLagt: Bool = false  // det etterlyste kortet er spilt
     private(set) var makkerSeat: Int?          // kjent for motoren, skjult i UI
     private(set) var makkerAvslørt: Bool = false
+    /// Amerikaner-melding: laget (budvinner + makker) må ta alle stikkene.
+    /// Spilles med trumf og hemmelig makker som vanlig.
     private(set) var erAmerikaner: Bool = false
+    /// Solo-amerikaner: budvinneren må ta alle stikkene helt alene. Fortsatt
+    /// trumf, og et kort kan etterlyses i første stikk – men ingen makker.
+    private(set) var erSolo: Bool = false
 
     // Stikkspill
     private(set) var currentTrick: [TrickPlay] = []
@@ -107,9 +113,11 @@ final class GameEngine {
         høyesteBud = nil
         trumf = nil
         ønsketKort = nil
+        ønsketLagt = false
         makkerSeat = nil
         makkerAvslørt = false
         erAmerikaner = false
+        erSolo = false
         currentTrick = []
         sisteStikk = []
         sisteStikkVinner = nil
@@ -122,16 +130,21 @@ final class GameEngine {
 
     // MARK: - Budrunde
 
-    /// Lovlige bud for setet som er i tur.
+    /// Lovlige bud for setet som er i tur. Tallbud må overby hverandre,
+    /// Amerikaner slår alle tallbud, og solo-amerikaner slår alt.
     func lovligeBud(for seat: Int) -> [BidAction] {
         guard phase == .budrunde, seat == aktivBudgiver, !harPasset.contains(seat) else { return [] }
         var handlinger: [BidAction] = [.pass]
-        let gulv = max(rules.minsteBud, (høyesteBud?.action.rang ?? rules.minsteBud - 1) + 1)
+        let høyesteRang = høyesteBud?.action.rang ?? -1
+        let gulv = max(rules.minsteBud, høyesteRang + 1)
         if gulv <= rules.maksBud {
             handlinger += (gulv...rules.maksBud).map { BidAction.bud($0) }
         }
-        if høyesteBud?.action != .amerikaner {
+        if høyesteRang < BidAction.amerikaner.rang {
             handlinger.append(.amerikaner)
+        }
+        if høyesteRang < BidAction.soloAmerikaner.rang {
+            handlinger.append(.soloAmerikaner)
         }
         return handlinger
     }
@@ -165,8 +178,9 @@ final class GameEngine {
             avsluttBudrunde(vinner: vinner)
             return
         }
-        // Amerikaner kan ikke overbys – avslutt med en gang.
-        if let vinner = høyesteBud, vinner.action == .amerikaner {
+        // Solo-amerikaner kan ikke overbys – avslutt med en gang.
+        // (Vanlig Amerikaner kan fortsatt overbys av solo.)
+        if let vinner = høyesteBud, vinner.action == .soloAmerikaner {
             avsluttBudrunde(vinner: vinner)
             return
         }
@@ -176,21 +190,17 @@ final class GameEngine {
     }
 
     /// Budrunden er avgjort: budvinneren tar eventuelt opp talongen og skal
-    /// vrake, ellers går spillet rett til trumfvalg (eller utspill ved
-    /// Amerikaner-melding).
+    /// vrake, og deretter velges trumf – også ved Amerikaner-meldingene.
     private func avsluttBudrunde(vinner: PlacedBid) {
         aktivBudgiver = vinner.seat
         aktivSpiller = vinner.seat
-        if vinner.action == .amerikaner {
-            erAmerikaner = true
-            trumf = nil
-            makkerSeat = nil
-        }
+        erAmerikaner = vinner.action == .amerikaner
+        erSolo = vinner.action == .soloAmerikaner
         if rules.medByttekort {
             hands[vinner.seat] = (hands[vinner.seat] + talon).sortertForHånd()
             phase = .byttekort
         } else {
-            phase = erAmerikaner ? .spill : .velgTrumf
+            phase = .velgTrumf
         }
     }
 
@@ -207,29 +217,38 @@ final class GameEngine {
         hands[seat].removeAll { kort.contains($0) }
         kastet = kort
         aktivSpiller = seat
-        phase = erAmerikaner ? .spill : .velgTrumf
+        phase = .velgTrumf
         return true
     }
 
     // MARK: - Trumf og makker
 
-    /// Kort budvinneren kan be om: trumfkort de ikke har selv.
+    /// Kort budvinneren kan be om: trumfkort de verken har selv eller har
+    /// vraket – det er ikke lov å etterlyse et dødt kort, så det etterlyste
+    /// kortet sitter garantert hos en motspiller.
     func kortSomKanØnskes(trumf: Suit) -> [Card] {
         guard let budgiver = budgiverSeat else { return [] }
-        let egne = Set(hands[budgiver].filter { $0.suit == trumf })
+        let utilgjengelige = Set((hands[budgiver] + kastet).filter { $0.suit == trumf })
         return Rank.allCases.reversed()
             .map { Card(suit: trumf, rank: $0) }
-            .filter { !egne.contains($0) }
+            .filter { !utilgjengelige.contains($0) }
     }
 
+    /// Budvinneren velger trumf og etterlyser et kort. Ved tallbud og
+    /// Amerikaner er etterlysningen obligatorisk (den peker ut makkeren);
+    /// ved solo-amerikaner er den valgfri og gir ingen makker – bare
+    /// plikten til å legge kortet i første stikk.
     @discardableResult
-    func velgTrumf(suit: Suit, ønsket: Card) -> Bool {
+    func velgTrumf(suit: Suit, ønsket: Card?) -> Bool {
         guard phase == .velgTrumf, let budgiver = budgiverSeat else { return false }
-        guard ønsket.suit == suit, kortSomKanØnskes(trumf: suit).contains(ønsket) else { return false }
+        if let ønsket {
+            guard ønsket.suit == suit, kortSomKanØnskes(trumf: suit).contains(ønsket) else { return false }
+        } else {
+            guard erSolo else { return false }
+        }
         trumf = suit
         ønsketKort = ønsket
-        makkerSeat = hands.firstIndex { $0.contains(ønsket) }
-        // Om ingen har kortet (umulig med 4 spillere der alt deles ut) spiller budgiver alene.
+        makkerSeat = erSolo ? nil : ønsket.flatMap { ø in hands.firstIndex { $0.contains(ø) } }
         if makkerSeat == budgiver { makkerSeat = nil }
         aktivSpiller = budgiver
         phase = .spill
@@ -265,7 +284,10 @@ final class GameEngine {
         hands[seat].removeAll { $0 == kort }
         currentTrick.append(TrickPlay(seat: seat, card: kort))
         spilteKort.append(kort)
-        if kort == ønsketKort { makkerAvslørt = true }
+        if kort == ønsketKort {
+            ønsketLagt = true
+            if makkerSeat != nil { makkerAvslørt = true }
+        }
 
         if currentTrick.count == rules.antallSpillere {
             fullførStikk()
@@ -310,33 +332,55 @@ final class GameEngine {
 
         if trickNummer == rules.kortPerSpiller {
             avsluttRunde()
-        } else if erAmerikaner, let solist = budgiverSeat,
-                  stikkTatt.enumerated().contains(where: { $0.offset != solist && $0.element > 0 }) {
-            // Amerikaner-meldingen er allerede tapt; spill likevel ferdig for stikkpoengene.
         }
+        // En tapt (solo-)amerikaner spilles likevel ferdig – stikkene gir
+        // poeng til de andre spillerne.
     }
 
     // MARK: - Poeng
 
+    /// Poengregler: budvinneren får alltid dobbelt av makkeren.
+    /// Tallbud n: ±2n til budvinner, ±n til makker. Amerikaner (alle stikk
+    /// med laget): ±målPoeng/2 og ±målPoeng/4. Solo-amerikaner (alle stikk
+    /// alene): ±målPoeng. Øvrige spillere får +1 per eget stikk.
     private func avsluttRunde() {
         guard let budgiver = budgiverSeat, let bud = høyesteBud?.action else { return }
         let n = rules.antallSpillere
         var endring = Array(repeating: 0, count: n)
         let klarte: Bool
 
-        if erAmerikaner {
+        let lag = erSolo ? [budgiver] : [budgiver, makkerSeat].compactMap { $0 }
+        let lagStikk = lag.reduce(0) { $0 + stikkTatt[$1] }
+
+        let budgiverPoeng: Int
+        let makkerPoeng: Int
+        switch bud {
+        case .soloAmerikaner:
             klarte = stikkTatt[budgiver] == rules.kortPerSpiller
-            endring[budgiver] = klarte ? rules.målPoeng : -rules.målPoeng
-            for s in 0..<n where s != budgiver { endring[s] = stikkTatt[s] }
-        } else if case .bud(let mål) = bud {
-            let lag = [budgiver, makkerSeat].compactMap { $0 }
-            let lagStikk = lag.reduce(0) { $0 + stikkTatt[$1] }
+            budgiverPoeng = rules.målPoeng
+            makkerPoeng = 0
+        case .amerikaner:
+            klarte = lagStikk == rules.kortPerSpiller
+            budgiverPoeng = rules.målPoeng / 2
+            makkerPoeng = rules.målPoeng / 4
+        case .bud(let mål):
             klarte = lagStikk >= mål
-            for s in 0..<n {
-                endring[s] = lag.contains(s) ? (klarte ? mål : -mål) : stikkTatt[s]
-            }
-        } else {
+            budgiverPoeng = mål * 2
+            makkerPoeng = mål
+        case .pass:
             klarte = false
+            budgiverPoeng = 0
+            makkerPoeng = 0
+        }
+
+        for s in 0..<n {
+            if s == budgiver {
+                endring[s] = klarte ? budgiverPoeng : -budgiverPoeng
+            } else if lag.contains(s) {
+                endring[s] = klarte ? makkerPoeng : -makkerPoeng
+            } else {
+                endring[s] = stikkTatt[s]
+            }
         }
 
         for s in 0..<n { scores[s] += endring[s] }

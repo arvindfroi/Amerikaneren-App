@@ -40,7 +40,15 @@ struct BiddingView: View {
                         Button("AMERIKANER! 🇺🇸") { vm.menneskeByr(.amerikaner) }
                             .buttonStyle(BTButtonStyle(farge: Theme.rød, stor: false))
                     }
+                    if lovlige.contains(.soloAmerikaner) {
+                        Button("SOLO! 🦅") { vm.menneskeByr(.soloAmerikaner) }
+                            .buttonStyle(BTButtonStyle(farge: Theme.blå, stor: false))
+                    }
                 }
+                Text("Amerikaner: alle stikk med makker (±\(vm.engine.rules.målPoeng / 2)). Solo: helt alene (±\(vm.engine.rules.målPoeng)).")
+                    .font(Theme.kroppFont(11))
+                    .foregroundStyle(Theme.blekkSvak)
+                    .multilineTextAlignment(.center)
             }
         }
     }
@@ -54,7 +62,7 @@ struct TrumfvalgView: View {
     var body: some View {
         PapirPanel {
             VStack(spacing: 12) {
-                Text("Du vant budrunden! Velg trumf:")
+                Text(vm.engine.erSolo ? "Solo-amerikaner! Velg trumf:" : "Du vant budrunden! Velg trumf:")
                     .font(Theme.kroppFont(16).weight(.bold))
                     .foregroundStyle(Theme.blekk)
                 HStack(spacing: 10) {
@@ -78,7 +86,9 @@ struct TrumfvalgView: View {
                         }
                     }
                 }
-                Text("Be om et kort – eieren blir din hemmelige makker:")
+                Text(vm.engine.erSolo
+                     ? "Etterlys et kort som må legges i første stikk – eller spill uten:"
+                     : "Be om et kort – eieren blir din hemmelige makker:")
                     .font(Theme.kroppFont(13))
                     .foregroundStyle(Theme.blekkSvak)
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -92,6 +102,12 @@ struct TrumfvalgView: View {
                         }
                     }
                     .padding(.vertical, 4)
+                }
+                if vm.engine.erSolo {
+                    Button("Spill uten å etterlyse") {
+                        vm.menneskeVelgerTrumf(suit: valgtTrumf, ønsket: nil)
+                    }
+                    .buttonStyle(BTButtonStyle(farge: Theme.blå, stor: false))
                 }
             }
         }

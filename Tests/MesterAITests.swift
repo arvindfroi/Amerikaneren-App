@@ -173,7 +173,7 @@ final class MesterAITests: XCTestCase {
             case .velgTrumf:
                 let sete = engine.budgiverSeat!
                 let valg = raskMester(sete: sete, seed: UInt64(vakt)).velgTrumfOgMakker(engine: engine)
-                let (suit, ønsket) = valg ?? (.spar, engine.kortSomKanØnskes(trumf: .spar)[0])
+                let (suit, ønsket) = valg ?? (.spar, engine.kortSomKanØnskes(trumf: .spar).first)
                 XCTAssertTrue(engine.velgTrumf(suit: suit, ønsket: ønsket))
             case .spill:
                 let sete = engine.aktivSpiller

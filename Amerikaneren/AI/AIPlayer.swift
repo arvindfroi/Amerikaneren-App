@@ -82,13 +82,19 @@ struct AIPlayer {
             estimat += Double.random(in: -difficulty.budStøy...difficulty.budStøy)
         }
 
-        // Amerikaner-melding: nesten alle stikk selv, uten trumf.
+        // Amerikaner: laget må ta ALLE stikkene (med trumf og makker).
+        // Solo-amerikaner: alle stikkene helt alene – ekstremt sjelden.
+        let alleStikk = Double(engine.rules.maksBud)
         let solostikk = Self.estimerStikk(hånd: hånd, trumf: Self.besteTrumf(hånd: hånd).suit)
+        if lovlige.contains(.soloAmerikaner), solostikk >= alleStikk + 0.5 {
+            return .soloAmerikaner
+        }
         if lovlige.contains(.amerikaner) {
             if difficulty.spillerPerfekt {
-                // Perfekt spiller melder bare når hånden faktisk bærer det.
-                if solostikk >= 12.5 { return .amerikaner }
-            } else if solostikk >= 11.5, Double.random(in: 0...1) < personality.storhetsdrøm {
+                // Perfekt spiller melder bare når laget faktisk bærer det.
+                if solostikk + 2.0 >= alleStikk + 1.0 { return .amerikaner }
+            } else if solostikk + 2.0 >= alleStikk,
+                      Double.random(in: 0...1) < personality.storhetsdrøm {
                 return .amerikaner
             }
         }
@@ -138,17 +144,28 @@ struct AIPlayer {
         return Array(hånd.sorted { beholdVerdi($0) < beholdVerdi($1) }.prefix(antall))
     }
 
-    func velgTrumfOgMakker(engine: GameEngine) -> (Suit, Card)? {
+    /// Trumf- og etterlysningsvalg. Ved tallbud og Amerikaner er kortet
+    /// makkeren; ved solo-amerikaner er etterlysningen valgfri (nil = ingen)
+    /// og brukes bare til å tvinge fram en trumf man selv kan stikke over.
+    func velgTrumfOgMakker(engine: GameEngine) -> (Suit, Card?)? {
         if let mester, let valg = mester.velgTrumfOgMakker(engine: engine),
-           engine.kortSomKanØnskes(trumf: valg.0).contains(valg.1) {
+           valg.1 == nil || engine.kortSomKanØnskes(trumf: valg.0).contains(valg.1!) {
             return valg
         }
         let hånd = engine.hands[seat]
         let (suit, _) = Self.besteTrumf(hånd: hånd)
+        if engine.erSolo {
+            // Etterlys bare et trumfkort vi kan slå med vårt eget toppkort.
+            let minTopp = hånd.filter { $0.suit == suit }.map(\.rank).max()
+            let uttrekk = engine.kortSomKanØnskes(trumf: suit).first { kort in
+                minTopp.map { kort.rank < $0 } ?? false
+            }
+            return (suit, uttrekk)
+        }
         let kandidater = engine.kortSomKanØnskes(trumf: suit)
         // Be om høyeste trumf man ikke har selv – da får laget beste kort.
         guard let ønsket = kandidater.first else {
-            // Har alle trumfene: be om høyeste kort i nest beste farge.
+            // Har alle tilgjengelige trumfene: prøv nest beste farge.
             for annen in Suit.allCases where annen != suit {
                 if let alternativ = engine.kortSomKanØnskes(trumf: annen).first {
                     return (annen, alternativ)
@@ -246,7 +263,8 @@ struct AIPlayer {
     /// mens en uavslørt makker bare kjenner laget sitt selv.
     private func erPåMittLag(_ annenSeat: Int, engine: GameEngine) -> Bool {
         guard annenSeat != seat else { return true }
-        guard !engine.erAmerikaner, let budgiver = engine.budgiverSeat else { return false }
+        // Ved solo-amerikaner finnes ikke noe lag – alle spiller mot solisten.
+        guard !engine.erSolo, let budgiver = engine.budgiverSeat else { return false }
 
         let jegErBudgiverlag = seat == budgiver || engine.makkerSeat == seat
         let annenErBudgiverlag: Bool

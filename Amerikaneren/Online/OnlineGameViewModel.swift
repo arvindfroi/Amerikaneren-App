@@ -186,7 +186,7 @@ final class OnlineGameViewModel: ObservableObject {
 
     func byr(_ bud: BidAction) { lokalHandling(.bud(bud)) }
     func vraker(_ kort: [Card]) { lokalHandling(.bytt(kort)) }
-    func velgerTrumf(suit: Suit, kort: Card) { lokalHandling(.trumf(suit, kort)) }
+    func velgerTrumf(suit: Suit, kort: Card?) { lokalHandling(.trumf(suit, kort)) }
     func spiller(_ kort: Card) { lokalHandling(.kort(kort)) }
 
     private func lokalHandling(_ handling: OnlineAction) {
@@ -279,6 +279,8 @@ final class OnlineGameViewModel: ObservableObject {
             makkerAvslørt: engine.makkerAvslørt,
             makkerSeat: engine.makkerAvslørt ? engine.makkerSeat : nil,
             erAmerikaner: engine.erAmerikaner,
+            erSolo: engine.erSolo,
+            ønsketLagt: engine.ønsketLagt,
             budgiverSeat: engine.budgiverSeat,
             currentTrick: engine.currentTrick,
             sisteStikk: engine.sisteStikk,
@@ -289,6 +291,7 @@ final class OnlineGameViewModel: ObservableObject {
             lovligeBud: engine.lovligeBud(for: sete),
             antallBytte: engine.phase == .byttekort && engine.budgiverSeat == sete
                 ? engine.rules.antallByttekort : nil,
+            dineKastede: engine.budgiverSeat == sete ? engine.kastet : nil,
             sisteRunde: engine.sisteRunde,
             vinnerSeat: engine.vinnerSeat,
             rundeHistorikk: engine.phase == .spillFerdig ? engine.rundeResultater : nil

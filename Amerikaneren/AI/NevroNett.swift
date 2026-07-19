@@ -113,11 +113,12 @@ struct NevroHjerne {
 /// avslørt makker og poengstillingen. Alt kodes relativt til eget sete.
 enum NevroTrekk {
     static let budDim = 64
-    static let byttDim = 58
-    static let spillDim = 237
+    static let byttDim = 59
+    static let spillDim = 238
 
     /// Budhandlingene nettet kan velge mellom (maskeres mot lovlige bud).
-    static let budHandlinger: [BidAction] = [.pass] + (5...13).map { BidAction.bud($0) } + [.amerikaner]
+    static let budHandlinger: [BidAction] =
+        [.pass] + (5...13).map { BidAction.bud($0) } + [.amerikaner, .soloAmerikaner]
 
     private static func settKort(_ v: inout [Float], _ basis: Int, _ kort: [Card]) {
         for k in kort { v[basis + Kortmaske.indeks(k)] = 1 }
@@ -158,6 +159,7 @@ enum NevroTrekk {
         v[55] = Float(min(maksAndre, engine.rules.målPoeng)) / Float(engine.rules.målPoeng)
         v[56] = Float(engine.rules.kortPerSpiller) / 13
         v[57] = 1
+        v[58] = engine.erSolo ? 1 : 0
         return v
     }
 
@@ -166,7 +168,7 @@ enum NevroTrekk {
         settKort(&v, 0, engine.hands[sete])
         settKort(&v, 52, engine.spilteKort)
         settKort(&v, 104, engine.currentTrick.map(\.card))
-        if let ønsket = engine.ønsketKort, !engine.makkerAvslørt {
+        if let ønsket = engine.ønsketKort, !engine.ønsketLagt {
             v[156 + Kortmaske.indeks(ønsket)] = 1
         }
         if let budgiver = engine.budgiverSeat { v[208 + rel(sete, budgiver)] = 1 }
@@ -197,6 +199,7 @@ enum NevroTrekk {
         for s in 0..<4 {
             v[233 + rel(sete, s)] = Float(engine.stikkTatt[s]) / 13
         }
+        v[237] = engine.erSolo ? 1 : 0
         return v
     }
 }

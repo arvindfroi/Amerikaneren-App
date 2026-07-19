@@ -67,7 +67,8 @@ struct Spillinnsikt {
     let sete: Int
     let budgiver: Int
     let bud: BidAction
-    let erAmerikaner: Bool
+    let erAmerikaner: Bool       // laget må ta alle stikkene (med makker)
+    let erSolo: Bool             // budvinneren spiller helt alene
     let trumfFarge: Int?
     let stikkTotalt: Int         // stikk i runden (12 med byttekort, ellers 13)
     let minHånd: UInt64
@@ -76,8 +77,7 @@ struct Spillinnsikt {
     let antallDødeUkjente: Int   // vrakede byttekort med ukjent innhold (0 for budgiver)
     let forbudt: [UInt64]        // per sete: kort setet beviselig ikke har (renons)
     let ønsketIndeks: Int?       // uavslørt etterlyst kort som ikke er på egen hånd
-    let ønsketKandidater: [Int]  // seter som fortsatt kan ha det
-    let ønsketKanVæreDød: Bool   // kan det etterlyste kortet ligge i vraket?
+    let ønsketKandidater: [Int]  // seter som kan ha det (aldri vraket – det er forbudt å ønske dødt)
     let pliktkort: Int?          // etterlyst kort som ennå må håndheves i første stikk
     let kjentMakker: Int?        // avslørt makker – eller meg selv om jeg har kortet
     let jegErBudgiverlag: Bool
@@ -96,6 +96,7 @@ struct Spillinnsikt {
         self.budgiver = budgiver
         self.bud = budAction
         self.erAmerikaner = engine.erAmerikaner
+        self.erSolo = engine.erSolo
         self.trumfFarge = engine.trumf.map(Kortmaske.fargeIndeks)
         self.stikkTotalt = engine.rules.kortPerSpiller
         let minMaske = Kortmaske.maske(engine.hands[sete])
@@ -123,7 +124,7 @@ struct Spillinnsikt {
         // (makkerplikten tvinger kortet fram ved første lovlige anledning).
         let trumfIdx = self.trumfFarge
         let øIdx = engine.ønsketKort.map(Kortmaske.indeks)
-        let ønsketUte = engine.ønsketKort != nil && !engine.makkerAvslørt
+        let ønsketUte = engine.ønsketKort != nil && !engine.ønsketLagt
         var forbudt = [UInt64](repeating: 0, count: 4)
         var utelukketØnsket = Set<Int>()
 
@@ -170,27 +171,29 @@ struct Spillinnsikt {
         self.forbudt = forbudt
 
         // Egen lagtilhørighet: budgiveren og makkeren vet det selv fra start,
-        // forsvarerne vet at de ikke har kortet.
+        // forsvarerne vet at de ikke har kortet. Ved solo-amerikaner finnes
+        // ingen makker – den som har det etterlyste kortet er en motspiller.
         let jegHarØnsket = øIdx.map { minMaske & (1 << UInt64($0)) != 0 } ?? false
         self.jegErBudgiverlag = sete == budgiver || engine.makkerSeat == sete
-        self.kjentMakker = engine.makkerAvslørt ? engine.makkerSeat : (jegHarØnsket ? sete : nil)
+        self.kjentMakker = engine.erSolo ? nil
+            : engine.makkerAvslørt ? engine.makkerSeat
+            : (jegHarØnsket ? sete : nil)
 
+        // Etterlyste kort kan aldri ligge i vraket (forbudt å ønske dødt),
+        // så kortet sitter garantert hos ett av de andre setene.
         if let ø = øIdx, ønsketUte, !jegHarØnsket, ukjente & (1 << UInt64(ø)) != 0 {
             self.ønsketIndeks = ø
             let kandidater = (0..<4).filter { s in
                 s != sete && s != budgiver && !utelukketØnsket.contains(s)
                     && forbudt[s] & (1 << UInt64(ø)) == 0
             }
-            let kanVæreDød = antallDødeUkjente > 0
-            // Skulle slutningene (mot formodning) utelukke alt, slipp dem.
-            self.ønsketKandidater = (kandidater.isEmpty && !kanVæreDød)
+            // Skulle slutningene (mot formodning) utelukke alle, slipp dem.
+            self.ønsketKandidater = kandidater.isEmpty
                 ? (0..<4).filter { $0 != sete && $0 != budgiver }
                 : kandidater
-            self.ønsketKanVæreDød = kanVæreDød
         } else {
             self.ønsketIndeks = nil
             self.ønsketKandidater = []
-            self.ønsketKanVæreDød = false
         }
         self.pliktkort = (trickNummer == 0 && ønsketUte) ? øIdx : nil
     }
@@ -223,15 +226,11 @@ extension Spillinnsikt {
             var makker = kjentMakker
 
             if let ø = ønsketIndeks {
-                var mulige = ønsketKandidater.filter { behov[$0] > 0 }
-                if ønsketKanVæreDød { mulige.append(4) }
+                let mulige = ønsketKandidater.filter { behov[$0] > 0 }
                 guard let valgt = mulige.randomElement(using: &rng) else { return nil }
-                if valgt < 4 {
-                    hender[valgt] |= 1 << UInt64(ø)
-                    makker = valgt
-                }
+                hender[valgt] |= 1 << UInt64(ø)
+                if !erSolo { makker = valgt }
                 behov[valgt] -= 1
-                // Havner kortet i vraket, spiller budgiveren uvitende alene.
             }
 
             pool.shuffle(using: &rng)
@@ -260,8 +259,8 @@ extension Spillinnsikt {
             guard ok else { continue }
 
             var lag: UInt8 = 1 << UInt8(budgiver)
-            if !erAmerikaner, let makker { lag |= 1 << UInt8(makker) }
-            return Verden(hender: hender, makker: erAmerikaner ? nil : makker, lagMaske: lag)
+            if !erSolo, let makker { lag |= 1 << UInt8(makker) }
+            return Verden(hender: hender, makker: erSolo ? nil : makker, lagMaske: lag)
         }
         return nil
     }

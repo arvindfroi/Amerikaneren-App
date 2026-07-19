@@ -98,19 +98,68 @@ final class GameEngineTests: XCTestCase {
         for kort in vrak { XCTAssertFalse(engine.hands.flatMap { $0 }.contains(kort)) }
     }
 
-    func testAmerikanerAvslutterBudrundenUtenTrumf() {
+    func testAmerikanerKanOverbysAvSoloOgHarTrumfOgMakker() {
         let engine = nyEngine()
         engine.startRunde(seed: 7)
         let første = engine.aktivBudgiver
         XCTAssertTrue(engine.giBud(seat: første, action: .amerikaner))
-        // Også Amerikaner-melderen bytter kort først.
+        // Amerikaner slår tallbud, men kan fortsatt overbys av solo.
+        XCTAssertEqual(engine.phase, .budrunde)
+        let neste = engine.aktivBudgiver
+        XCTAssertFalse(engine.lovligeBud(for: neste).contains(.bud(12)))
+        XCTAssertTrue(engine.lovligeBud(for: neste).contains(.soloAmerikaner))
+        while engine.phase == .budrunde {
+            engine.giBud(seat: engine.aktivBudgiver, action: .pass)
+        }
+        // Også Amerikaner-melderen bytter kort – og velger så trumf og makker.
         XCTAssertEqual(engine.phase, .byttekort)
         XCTAssertTrue(engine.erAmerikaner)
         let vrak = Array(engine.hands[første].prefix(4))
         XCTAssertTrue(engine.kastByttekort(vrak, seat: første))
-        XCTAssertEqual(engine.phase, .spill)
-        XCTAssertNil(engine.trumf)
+        XCTAssertEqual(engine.phase, .velgTrumf)
+        // Amerikaner krever etterlysning (makker) – nil avvises.
+        XCTAssertFalse(engine.velgTrumf(suit: .spar, ønsket: nil))
+        guard let ønsket = engine.kortSomKanØnskes(trumf: .spar).first else {
+            return XCTFail("Ingen ønskbare kort")
+        }
+        XCTAssertTrue(engine.velgTrumf(suit: .spar, ønsket: ønsket))
+        XCTAssertNotNil(engine.trumf)
+        XCTAssertNotNil(engine.makkerSeat)
         XCTAssertEqual(engine.aktivSpiller, første)
+        XCTAssertEqual(engine.phase, .spill)
+    }
+
+    func testSoloAmerikanerSpillerAleneMedTrumf() {
+        let engine = nyEngine()
+        engine.startRunde(seed: 19)
+        let første = engine.aktivBudgiver
+        XCTAssertTrue(engine.giBud(seat: første, action: .soloAmerikaner))
+        // Solo kan ikke overbys – budrunden er over med en gang.
+        XCTAssertEqual(engine.phase, .byttekort)
+        XCTAssertTrue(engine.erSolo)
+        let vrak = Array(engine.hands[første].prefix(4))
+        XCTAssertTrue(engine.kastByttekort(vrak, seat: første))
+        // Etterlysning er valgfri ved solo.
+        XCTAssertTrue(engine.velgTrumf(suit: .hjerter, ønsket: nil))
+        XCTAssertEqual(engine.trumf, .hjerter)
+        XCTAssertNil(engine.makkerSeat)
+        XCTAssertEqual(engine.phase, .spill)
+
+        // Spill runden ut: solisten tar neppe alt, og skal da tape målPoeng.
+        var vakt = 0
+        while engine.phase == .spill, vakt < 200 {
+            let seat = engine.aktivSpiller
+            engine.spill(kort: engine.lovligeKort(for: seat).first!, seat: seat)
+            vakt += 1
+        }
+        guard let runde = engine.sisteRunde else { return XCTFail("Ingen runde") }
+        let klarte = runde.stikkPerSpiller[første] == engine.rules.kortPerSpiller
+        XCTAssertEqual(runde.klarte, klarte)
+        XCTAssertEqual(runde.poengEndring[første],
+                       klarte ? engine.rules.målPoeng : -engine.rules.målPoeng)
+        for s in 0..<4 where s != første {
+            XCTAssertEqual(runde.poengEndring[s], runde.stikkPerSpiller[s])
+        }
     }
 
     func testTrumfvalgFinnerMakker() {
@@ -127,17 +176,17 @@ final class GameEngineTests: XCTestCase {
         XCTAssertEqual(engine.phase, .spill)
     }
 
-    func testØnsketKortIVrakGirSpillAlene() {
+    func testVraketKortKanIkkeØnskes() {
         let engine = nyEngine()
         engine.startRunde(seed: 3)
-        let budgiver = vinnBudrundeOgVrak(engine)
-        // Be om et vraket kort: ingen makker, budgiveren spiller alene.
-        guard let dødt = engine.kastet.first(where: { kort in
-            engine.kortSomKanØnskes(trumf: kort.suit).contains(kort)
-        }) else { return }   // vraket kan mangle ønskbare kort for enkelte frø
-        XCTAssertTrue(engine.velgTrumf(suit: dødt.suit, ønsket: dødt))
-        XCTAssertNil(engine.makkerSeat)
-        XCTAssertEqual(engine.phase, .spill)
+        _ = vinnBudrundeOgVrak(engine)
+        // Det er forbudt å etterlyse et vraket kort – de er verken med i
+        // ønskelisten eller godtas av motoren.
+        for kort in engine.kastet {
+            XCTAssertFalse(engine.kortSomKanØnskes(trumf: kort.suit).contains(kort))
+            XCTAssertFalse(engine.velgTrumf(suit: kort.suit, ønsket: kort))
+        }
+        XCTAssertEqual(engine.phase, .velgTrumf)
     }
 
     func testStikkVinnerHøyesteIFargenOgTrumf() {
@@ -184,8 +233,10 @@ final class GameEngineTests: XCTestCase {
             for s in 0..<4 where !lag.contains(s) {
                 XCTAssertEqual(resultat.poengEndring[s], resultat.stikkPerSpiller[s])
             }
+            // Budvinneren vinner/taper det dobbelte av budet, makkeren budet.
             for s in lag {
-                XCTAssertEqual(resultat.poengEndring[s], resultat.klarte ? 5 : -5)
+                let sats = s == resultat.budgiver ? 10 : 5
+                XCTAssertEqual(resultat.poengEndring[s], resultat.klarte ? sats : -sats)
             }
         }
     }
@@ -235,8 +286,10 @@ final class GameEngineTests: XCTestCase {
                 let seat = engine.budgiverSeat!
                 engine.kastByttekort(Array(engine.hands[seat].prefix(4)), seat: seat)
             case .velgTrumf:
-                let ønsket = engine.kortSomKanØnskes(trumf: .hjerter)[0]
-                engine.velgTrumf(suit: .hjerter, ønsket: ønsket)
+                for suit in Suit.allCases {
+                    if let ønsket = engine.kortSomKanØnskes(trumf: suit).first,
+                       engine.velgTrumf(suit: suit, ønsket: ønsket) { break }
+                }
             case .spill:
                 let seat = engine.aktivSpiller
                 engine.spill(kort: engine.lovligeKort(for: seat).first!, seat: seat)
