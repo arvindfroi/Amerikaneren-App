@@ -2,11 +2,20 @@ import Foundation
 
 /// Heuristisk AI-spiller. Vurderer hånden for bud, velger trumf/makkerkort
 /// og spiller stikk med enkel kortteling. Personlighet og vanskelighetsgrad
-/// justerer beslutningene.
+/// justerer beslutningene. På President-nivå overtar søkeboten `MesterAI`;
+/// heuristikken under fungerer da som sikkerhetsnett.
 struct AIPlayer {
     let seat: Int
     let difficulty: AIDifficulty
     let personality: AIPersonality
+    private let mester: MesterAI?
+
+    init(seat: Int, difficulty: AIDifficulty, personality: AIPersonality) {
+        self.seat = seat
+        self.difficulty = difficulty
+        self.personality = personality
+        self.mester = difficulty.spillerPerfekt ? MesterAI(sete: seat) : nil
+    }
 
     // MARK: - Håndvurdering
 
@@ -50,6 +59,10 @@ struct AIPlayer {
     func velgBud(engine: GameEngine) -> BidAction {
         let lovlige = engine.lovligeBud(for: seat)
         guard !lovlige.isEmpty else { return .pass }
+        if let mester {
+            let bud = mester.velgBud(engine: engine)
+            if lovlige.contains(bud) { return bud }
+        }
         let hånd = engine.hands[seat]
         let (_, råEstimat) = Self.besteTrumf(hånd: hånd)
 
@@ -89,6 +102,10 @@ struct AIPlayer {
     }
 
     func velgTrumfOgMakker(engine: GameEngine) -> (Suit, Card)? {
+        if let mester, let valg = mester.velgTrumfOgMakker(engine: engine),
+           engine.kortSomKanØnskes(trumf: valg.0).contains(valg.1) {
+            return valg
+        }
         let hånd = engine.hands[seat]
         let (suit, _) = Self.besteTrumf(hånd: hånd)
         let kandidater = engine.kortSomKanØnskes(trumf: suit)
@@ -111,6 +128,9 @@ struct AIPlayer {
         let lovlige = engine.lovligeKort(for: seat)
         guard !lovlige.isEmpty else { return nil }
         if lovlige.count == 1 { return lovlige[0] }
+        if let mester, let kort = mester.velgKort(engine: engine), lovlige.contains(kort) {
+            return kort
+        }
         if Double.random(in: 0...1) < difficulty.feilspillSjanse {
             return lovlige.randomElement()
         }

@@ -1,5 +1,22 @@
 # Utviklingslogg
 
+## v0.7 – MesterAI: søkebot på President-nivå
+
+- **MesterAI** (`AI/MesterAI.swift`, `MesterVerden.swift`,
+  `MesterSolver.swift`): President-vanskelighetsgraden drives nå av ekte
+  søk i stedet for heuristikk – determinisert Monte Carlo over samplede
+  verdener, eksakt dobbeltdummy-løsning av sluttspillet (alfa-beta med
+  transposisjonstabell og sekvensreduksjon) og simuleringsbasert
+  budgivning/trumfvalg på forventet poengsum. Ingen juks: boten ser bare
+  det setet lovlig vet, inkludert renons- og makkerplikt-slutninger.
+- Løseren er verifisert mot en brute-force-minimax på hundrevis av
+  tilfeldige stillinger, og hele runder fuzz-testes for lovlighet.
+  I rundemålinger mot tre «Vanskelig»-heuristikker gir MesterAI klart
+  flere poeng per runde, feiler nesten aldri egne kontrakter og feller
+  flere i forsvar. Dokumentert i docs/AI.md.
+- `AIPlayer` ruter President-beslutninger til MesterAI og beholder
+  heuristikken som sikkerhetsnett; øvrige nivåer er uendret.
+
 ## v0.6 – Designsystem og tommelsone-UX
 
 - **Designsystem (`DS`)**: tokens for farge, typografi (Dynamic

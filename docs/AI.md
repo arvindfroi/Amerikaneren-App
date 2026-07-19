@@ -1,7 +1,9 @@
 # Slik tenker CPU-ene
 
-All AI ligger i `AI/AIPlayer.swift` og er ren heuristikk – ingen søk, ingen
-simulering. Det gjør den rask, forutsigbar å teste, og lett å justere.
+AI-en har to lag. Lett, Middels og Vanskelig bruker ren heuristikk i
+`AI/AIPlayer.swift` – rask, forutsigbar å teste og lett å justere.
+**President**-nivået bruker søkeboten **MesterAI** (`AI/MesterAI.swift` med
+`MesterVerden.swift` og `MesterSolver.swift`), beskrevet nederst.
 
 ## Håndvurdering (`estimerStikk`)
 
@@ -58,11 +60,11 @@ Utspill:
 | Lett | ±2,2 | 35 % tilfeldig lovlig kort | full effekt |
 | Middels | ±1,2 | 15 % | full effekt |
 | Vanskelig | ±0,5 | 4 % | full effekt |
-| **President** | 0 | 0 | **skrus helt av** |
+| **President** | 0 | 0 | **skrus helt av** – MesterAI overtar |
 
 President-regelen er absolutt: `AIDifficulty.spillerPerfekt` kortslutter
-alle personlighetsjusteringer, så Onkel Sam (og alle andre på President-
-nivå) byr rent på estimatet og spiller alltid det heuristisk beste kortet.
+alle personlighetsjusteringer og ruter alle beslutninger til MesterAI.
+Heuristikken står igjen som sikkerhetsnett om søket skulle feile.
 
 ## Personligheter (Civ-stil)
 
@@ -90,3 +92,46 @@ for alle, en avslørt makker likeså, mens en **uavslørt makker** vet selv at
 den er på budgiverlaget – forsvarerne behandler den som medspiller inntil
 ønskekortet legges. Ingen AI vet noe et menneske i samme sete ikke ville
 visst.
+
+## MesterAI – søkeboten bak President-nivået
+
+MesterAI jukser aldri: den ser bare det setet lovlig kan se, samlet i
+`Spillinnsikt` – egen hånd, alle spilte kort, hvem som meldte hva, og
+slutninger et menneske kunne trukket:
+
+- **Renonser**: fulgte ikke et sete fargen, kan setet ikke ha den fargen.
+- **Makkerplikt-slutning**: la et sete et annet kort enn det etterlyste i
+  første stikk i en situasjon der plikten ville tvunget kortet fram, kan
+  setet ikke ha det.
+- **Ønskekortet**: budgiveren kan ikke ha det, og den som selv sitter med
+  det vet at den er makker.
+
+Beslutningene bygger på tre teknikker:
+
+1. **Determinisert Monte Carlo** (`Spillinnsikt.sampleVerden`): de ukjente
+   kortene deles ut i mange mulige verdener som respekterer alle
+   begrensningene over (mest bundne kort først, vektet mot restbehov).
+2. **Eksakt sluttspill** (`Dobbeltdummy`): hver verden spilles med en rask
+   grådig policy fram til `eksaktStikkGrense` stikk gjenstår (standard 6);
+   resten løses optimalt med alfa-beta, transposisjonstabell og
+   sekvensreduksjon (nabokort blant de gjenværende er likeverdige).
+   Løseren håndhever både farge-følging og makkerplikten i første stikk.
+3. **Simulert budgivning** (`velgBud`): pass, laveste lovlige bud og
+   Amerikaner sammenliknes på forventet poengsum over de samme samplede
+   verdenene – budscenarioet spilles ut med hybrid grådig/eksakt løsning,
+   pass-scenarioet lar den sterkeste motstanderen deklarere. Trumfvalget
+   (`velgTrumfOgMakker`) simulerer alle fire farger og ber alltid om det
+   høyeste trumfkortet laget mangler.
+
+I kortspillet måles hvert kandidatkort (etter sekvensreduksjon) over alle
+verdenene: budgiverlaget maksimerer sannsynligheten for å nå budet og
+deretter antall lagstikk; forsvaret det motsatte. Overstikk prioriteres
+aldri foran kontrakten – akkurat som poengreglene tilsier.
+
+Tidsbruken styres av `MesterKonfig` (verdener, sluttspillgrense og et mykt
+tidsbudsjett på ~0,45 s per trekk), så President-motstanderne føles kjappe
+også på eldre telefoner.
+
+I målinger over enkeltrunder mot tre «Vanskelig»-motstandere leverer
+MesterAI klart flere poeng per runde enn heuristikken i samme sete, feller
+flere kontrakter i forsvar og feiler nesten aldri egne kontrakter.
