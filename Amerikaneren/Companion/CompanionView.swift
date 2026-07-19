@@ -61,7 +61,7 @@ struct CompanionView: View {
                             }
                             .foregroundStyle(Theme.blå)
                         }
-                        Stepper("Spill til \(vm.målPoeng) poeng", value: $vm.målPoeng, in: 20...100, step: 1)
+                        Stepper("Spill til \(vm.målPoeng) poeng", value: $vm.målPoeng, in: 20...150, step: 1)
                             .font(Theme.kroppFont(15))
                             .foregroundStyle(Theme.blekk)
                     }
@@ -129,18 +129,23 @@ struct CompanionView: View {
                     .foregroundStyle(Theme.blekk)
 
                 velger("Budgiver", valg: $vm.budgiver)
-                Toggle("Amerikaner-melding (alle stikk alene)", isOn: $vm.erAmerikaner)
+                Toggle("Amerikaner (alle stikk, med makker)", isOn: $vm.erAmerikaner)
+                    .onChange(of: vm.erAmerikaner) { _, nå in if nå { vm.erSolo = false } }
+                Toggle("Solo-amerikaner (alle stikk alene)", isOn: $vm.erSolo)
+                    .onChange(of: vm.erSolo) { _, nå in if nå { vm.erAmerikaner = false } }
                     .font(Theme.kroppFont(14))
                     .foregroundStyle(Theme.blekk)
 
-                if !vm.erAmerikaner {
+                if !vm.erAmerikaner && !vm.erSolo {
                     Stepper("Bud: \(vm.bud) stikk", value: $vm.bud, in: 1...vm.kortPerSpiller)
                         .font(Theme.kroppFont(15))
                         .foregroundStyle(Theme.blekk)
+                }
+                if !vm.erSolo {
                     velger("Makker (ingen = spiller alene)", valg: $vm.makker, tillatIngen: true)
                 }
 
-                Toggle(vm.erAmerikaner ? "Tok alle stikkene" : "Laget klarte budet", isOn: $vm.klarte)
+                Toggle(vm.erAmerikaner || vm.erSolo ? "Tok alle stikkene" : "Laget klarte budet", isOn: $vm.klarte)
                     .font(Theme.kroppFont(15).weight(.semibold))
                     .foregroundStyle(Theme.blekk)
 

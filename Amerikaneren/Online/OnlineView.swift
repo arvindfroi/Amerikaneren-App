@@ -41,7 +41,7 @@ struct OnlineView: View {
                             Label("Slik virker det", systemImage: "info.circle.fill")
                                 .font(Theme.kroppFont(14).weight(.bold))
                                 .foregroundStyle(Theme.blekk)
-                            Text("Samme regler som offline: 4 ved bordet, hemmelig makker, først til 52. Er dere færre enn fire, fyller CPU-er de tomme setene. Faller noen fra, tar en CPU over. Resultatene teller i statistikken og H2H-oversikten din.")
+                            Text("Samme regler som offline: 4 ved bordet, byttekort, hemmelig makker, først til 100. Er dere færre enn fire, fyller CPU-er de tomme setene. Faller noen fra, tar en CPU over. Resultatene teller i statistikken og H2H-oversikten din.")
                                 .font(Theme.kroppFont(13))
                                 .foregroundStyle(Theme.blekkSvak)
                         }

@@ -170,6 +170,8 @@ final class OnlineGameViewModel: ObservableObject {
         switch handling {
         case .bud(let bud):
             engine.giBud(seat: sete, action: bud)
+        case .bytt(let kort):
+            engine.kastByttekort(kort, seat: sete)
         case .trumf(let suit, let kort):
             guard engine.budgiverSeat == sete else { return }
             engine.velgTrumf(suit: suit, ønsket: kort)
@@ -183,7 +185,8 @@ final class OnlineGameViewModel: ObservableObject {
     // MARK: - Lokale handlinger (begge roller)
 
     func byr(_ bud: BidAction) { lokalHandling(.bud(bud)) }
-    func velgerTrumf(suit: Suit, kort: Card) { lokalHandling(.trumf(suit, kort)) }
+    func vraker(_ kort: [Card]) { lokalHandling(.bytt(kort)) }
+    func velgerTrumf(suit: Suit, kort: Card?) { lokalHandling(.trumf(suit, kort)) }
     func spiller(_ kort: Card) { lokalHandling(.kort(kort)) }
 
     private func lokalHandling(_ handling: OnlineAction) {
@@ -217,7 +220,7 @@ final class OnlineGameViewModel: ObservableObject {
             let sete: Int
             switch engine.phase {
             case .budrunde: sete = engine.aktivBudgiver
-            case .velgTrumf: sete = engine.budgiverSeat ?? 0
+            case .byttekort, .velgTrumf: sete = engine.budgiverSeat ?? 0
             case .spill: sete = engine.aktivSpiller
             default: return
             }
@@ -228,6 +231,14 @@ final class OnlineGameViewModel: ObservableObject {
             switch engine.phase {
             case .budrunde:
                 engine.giBud(seat: sete, action: ai.velgBud(engine: engine))
+            case .byttekort:
+                let vrak = ai.velgByttekort(engine: engine)
+                if !engine.kastByttekort(vrak, seat: sete) {
+                    engine.kastByttekort(
+                        Array(engine.hands[sete].prefix(engine.rules.antallByttekort)),
+                        seat: sete
+                    )
+                }
             case .velgTrumf:
                 if let (suit, kort) = ai.velgTrumfOgMakker(engine: engine) {
                     engine.velgTrumf(suit: suit, ønsket: kort)
@@ -259,7 +270,7 @@ final class OnlineGameViewModel: ObservableObject {
             scores: engine.scores,
             phase: engine.phase,
             aktivSeat: engine.phase == .budrunde ? engine.aktivBudgiver
-                : engine.phase == .velgTrumf ? (engine.budgiverSeat ?? 0)
+                : engine.phase == .byttekort || engine.phase == .velgTrumf ? (engine.budgiverSeat ?? 0)
                 : engine.aktivSpiller,
             bids: engine.bids,
             høyesteBud: engine.høyesteBud,
@@ -268,6 +279,8 @@ final class OnlineGameViewModel: ObservableObject {
             makkerAvslørt: engine.makkerAvslørt,
             makkerSeat: engine.makkerAvslørt ? engine.makkerSeat : nil,
             erAmerikaner: engine.erAmerikaner,
+            erSolo: engine.erSolo,
+            ønsketLagt: engine.ønsketLagt,
             budgiverSeat: engine.budgiverSeat,
             currentTrick: engine.currentTrick,
             sisteStikk: engine.sisteStikk,
@@ -276,6 +289,9 @@ final class OnlineGameViewModel: ObservableObject {
             dinHånd: engine.hands.indices.contains(sete) ? engine.hands[sete] : [],
             lovligeKort: engine.lovligeKort(for: sete),
             lovligeBud: engine.lovligeBud(for: sete),
+            antallBytte: engine.phase == .byttekort && engine.budgiverSeat == sete
+                ? engine.rules.antallByttekort : nil,
+            dineKastede: engine.budgiverSeat == sete ? engine.kastet : nil,
             sisteRunde: engine.sisteRunde,
             vinnerSeat: engine.vinnerSeat,
             rundeHistorikk: engine.phase == .spillFerdig ? engine.rundeResultater : nil

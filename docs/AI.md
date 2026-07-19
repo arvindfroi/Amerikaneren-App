@@ -1,7 +1,10 @@
 # Slik tenker CPU-ene
 
-All AI ligger i `AI/AIPlayer.swift` og er ren heuristikk – ingen søk, ingen
-simulering. Det gjør den rask, forutsigbar å teste, og lett å justere.
+AI-en har tre lag. Lett, Middels og Vanskelig bruker ren heuristikk i
+`AI/AIPlayer.swift` – rask, forutsigbar å teste og lett å justere.
+**President**-nivået bruker søkeboten **MesterAI** (`AI/MesterAI.swift` med
+`MesterVerden.swift` og `MesterSolver.swift`) sammen med det nevrale
+nettet **NevroHjerne** (`AI/NevroNett.swift`), begge beskrevet nederst.
 
 ## Håndvurdering (`estimerStikk`)
 
@@ -26,9 +29,10 @@ estimat = håndestimat + 2.0 (forventet makkerbidrag)
 
 Byr laveste lovlige tallbud så lenge det er ≤ eget estimat, ellers pass.
 
-- **Amerikaner-melding**: krever solo-estimat ≥ 11,5 *og* et
-  personlighetsslag mot `storhetsdrøm`. På President meldes den kun med
-  reell dekning (≥ 12,5), uten terningkast.
+- **Amerikaner-melding** (alle stikk med makker) krever estimat nær
+  full pott pluss et personlighetsslag mot `storhetsdrøm`; solo-
+  amerikaner meldes bare med estimat over alle stikkene. På President
+  simuleres begge på forventet poengsum i stedet.
 - **Bløff**: bevisst nesten borte – man bløffer lite i Amerikaner. Kun en
   sjelden (`bløff × 0,15`) overbydning på ett hakk. Aldri på President.
 
@@ -58,11 +62,11 @@ Utspill:
 | Lett | ±2,2 | 35 % tilfeldig lovlig kort | full effekt |
 | Middels | ±1,2 | 15 % | full effekt |
 | Vanskelig | ±0,5 | 4 % | full effekt |
-| **President** | 0 | 0 | **skrus helt av** |
+| **President** | 0 | 0 | **skrus helt av** – MesterAI overtar |
 
 President-regelen er absolutt: `AIDifficulty.spillerPerfekt` kortslutter
-alle personlighetsjusteringer, så Onkel Sam (og alle andre på President-
-nivå) byr rent på estimatet og spiller alltid det heuristisk beste kortet.
+alle personlighetsjusteringer og ruter alle beslutninger til MesterAI.
+Heuristikken står igjen som sikkerhetsnett om søket skulle feile.
 
 ## Personligheter (Civ-stil)
 
@@ -90,3 +94,109 @@ for alle, en avslørt makker likeså, mens en **uavslørt makker** vet selv at
 den er på budgiverlaget – forsvarerne behandler den som medspiller inntil
 ønskekortet legges. Ingen AI vet noe et menneske i samme sete ikke ville
 visst.
+
+## MesterAI – søkeboten bak President-nivået
+
+MesterAI jukser aldri: den ser bare det setet lovlig kan se, samlet i
+`Spillinnsikt` – egen hånd, alle spilte kort, hvem som meldte hva, og
+slutninger et menneske kunne trukket:
+
+- **Renonser**: fulgte ikke et sete fargen, kan setet ikke ha den fargen.
+- **Makkerplikt-slutning**: la et sete et annet kort enn det etterlyste i
+  første stikk i en situasjon der plikten ville tvunget kortet fram, kan
+  setet ikke ha det.
+- **Ønskekortet**: budgiveren kan ikke ha det, og den som selv sitter med
+  det vet at den er makker.
+
+Beslutningene bygger på tre teknikker:
+
+1. **Determinisert Monte Carlo** (`Spillinnsikt.sampleVerden`): de ukjente
+   kortene deles ut i mange mulige verdener som respekterer alle
+   begrensningene over (mest bundne kort først, vektet mot restbehov).
+2. **Eksakt sluttspill** (`Dobbeltdummy`): hver verden spilles med en rask
+   grådig policy fram til `eksaktStikkGrense` stikk gjenstår (standard 6);
+   resten løses optimalt med alfa-beta, transposisjonstabell og
+   sekvensreduksjon (nabokort blant de gjenværende er likeverdige).
+   Løseren håndhever både farge-følging og makkerplikten i første stikk.
+3. **Simulert budgivning** (`velgBud`): pass, laveste lovlige bud og
+   Amerikaner sammenliknes på forventet poengsum over de samme samplede
+   verdenene – budscenarioet spilles ut med hybrid grådig/eksakt løsning
+   og tar høyde for talong-opptaket, pass-scenarioet lar den sterkeste
+   motstanderen deklarere. Trumfvalget (`velgTrumfOgMakker`) simulerer
+   alle fire farger og ber alltid om det høyeste **levende** trumfkortet
+   laget mangler (aldri et kort budgiveren selv vraket).
+4. **Simulert vrak** (`velgByttekort`): kandidat-vrak genereres for de
+   beste trumffargene (behold trumf/ess, tøm korte sidefarger – pluss
+   nettets forslag) og spilles ut mot samplede verdener; vraket som
+   oftest berger budet vinner.
+
+Med byttekort-varianten modellerer samplingen også vrakhaugen: for alle
+andre enn budvinneren er de fire vrakede kortene ukjente og settes til
+side i hver samplet verden. Det etterlyste kortet kan derimot aldri ligge
+der – det er forbudt å ønske et vraket kort – så makkeren (eller
+motspilleren, ved solo) finnes alltid rundt bordet.
+
+I kortspillet måles hvert kandidatkort (etter sekvensreduksjon) over alle
+verdenene: budgiverlaget maksimerer sannsynligheten for å nå budet og
+deretter antall lagstikk; forsvaret det motsatte. Overstikk prioriteres
+aldri foran kontrakten – akkurat som poengreglene tilsier.
+
+Tidsbruken styres av `MesterKonfig` (verdener, sluttspillgrense og et mykt
+tidsbudsjett på ~0,45 s per trekk), så President-motstanderne føles kjappe
+også på eldre telefoner.
+
+### Målt styrke
+
+Benchmarks (release-bygg, faste frø, gjeldende regler med byttekort og
+2×/1×-poeng) med sete 0 mot tre «Vanskelig»-heuristikker, sammenliknet
+med en «Vanskelig» i samme sete – komplett system med nett aktivt:
+
+- **Hele partier til 100 poeng:** MesterAI vant 25 av 30 partier (83 %),
+  mot 9 av 30 (30 %) for heuristikken – med 25 % som nøytralt
+  utgangspunkt for fire like spillere.
+- **150 enkeltrunder:** 7,96 poeng per runde mot 5,22 for heuristikken.
+  Som budgiver klarte MesterAI 68 av 76 kontrakter (89 %); som makker
+  25 av 26.
+
+Dobbeltdummy-løseren er i tillegg verifisert identisk med en
+brute-force-minimax på 800 tilfeldige stillinger, hele runder
+fuzz-testes for lovlighet, og en egenskapsbasert motorfuzz verifiserer
+alle poengregler uavhengig over tusenvis av tilfeldige runder.
+
+## NevroHjerne – det nevrale nettet
+
+Tre små MLP-er i ren Swift (`AI/NevroNett.swift`, ~100k parametre totalt,
+inferens på mikrosekunder uten Core ML): et **budhode** (hva skal meldes),
+et **byttehode** (hvilke 4 kort vrakes) og et **spillhode** (hvilket kort
+legges). Trekkuttrekket bruker kun lovlig informasjon – egen hånd, spilte
+kort, meldinger, avslørt makker, poengstilling – kodet relativt til eget
+sete. Vektene ligger innebygd i `AI/NevroVekter.swift` og regenereres av
+treningsharnessen.
+
+### Trening
+
+1. **Destillering**: 800 hele selvspill-partier med MesterAI i alle seter
+   ga ~109 000 budbeslutninger, ~13 000 vrak og ~496 000 kortvalg.
+   Nettene trenes veiledet med holdt-ut testsett (5 %): 91,6 % budtreff,
+   77 % vraktreff og 62 % kortvalgstreff mot læreren.
+2. **Forsterkningslæring**: selvspill-partier til 100 poeng der eneste
+   belønning er å vinne partiet, med verdihode som baseline,
+   destillasjonsanker (KL mot læreren) og deterministisk
+   fremdriftsmåling mot frosne referansenett (kopispill-prinsippet fra
+   turneringsbridge). RL-nettet slo referansen sin med god margin i
+   selvspill (0,70 mot 0,31 poeng/runde på identiske kortstokker).
+3. **Sluttport på ekte spill**: før eksport måles kandidatene på tusenvis
+   av ferske, tilfeldige runder mot andre motstandertyper. Porten avslørte
+   at RL-gevinsten ikke overførte fra selvspill (4,73 mot 4,82 for det
+   destillerte nettet over 2 000 runder), så det destillerte nettet ble
+   valgt – systemet skiper aldri selvspill-gevinster som ikke består
+   møtet med virkelig spill. Fargesymmetri-augmentering (fargene er
+   logisk likeverdige) er innebygd i treningen for videre iterasjoner.
+
+### Rolle i President-boten
+
+Nettet erstatter ikke søket – det samarbeider med det: nettets
+vrakforslag prøves som egen kandidat i byttesøket (og dømmes av
+simuleringen på lik linje), og nettet er reservespiller foran
+heuristikken om søket skulle feile. Alene spiller nettet på ~4,8
+poeng/runde mot «Vanskelig»-heuristikkene – på øyeblikkelig betenkningstid.
