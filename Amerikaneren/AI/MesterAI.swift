@@ -19,6 +19,10 @@ struct MesterKonfig {
     /// Vekt samplede verdener mot budhistorikken (pass = svak hånd,
     /// høyt bud = sterk hånd).
     var budvekting = true
+    /// Matchbevisst budgivning: ligger man langt bak sent i partiet, er
+    /// varians en venn (våg mer); leder man, er trygghet verdt mer enn
+    /// marginale bud. Virker i begge partiformater.
+    var matchbevisst = true
 
     /// Skalerer søket etter maskinvaren: flere kjerner gir flere verdener og
     /// dypere eksakt sluttspill innenfor samme tidsbudsjett.
@@ -76,10 +80,32 @@ final class MesterAI {
 
         let (heuristiskFarge, estimat) = AIPlayer.besteTrumf(hånd: hånd)
         let alleStikk = regler.maksBud
+
+        // Matchbevissthet: «senhet» er hvor nær partiet er slutten (nærhet
+        // til målpoeng, eller andel spilte runder i rundeformatet).
+        // Desperasjon (bak sent) premierer varians; trygghet (ledelse sent)
+        // premierer pass og straffer marginale bud.
+        var desperasjon = 0.0
+        var trygghet = 0.0
+        if konfig.matchbevisst {
+            let mål = Double(regler.målPoeng)
+            let minPoeng = Double(engine.scores[sete])
+            let besteAndre = Double((0..<4).filter { $0 != sete }.map { engine.scores[$0] }.max() ?? 0)
+            let senhet: Double
+            if let maksRunder = regler.maksRunder {
+                senhet = min(1, Double(engine.rundeResultater.count) / Double(max(1, maksRunder)))
+            } else {
+                senhet = min(1, max(minPoeng, besteAndre) / mål)
+            }
+            desperasjon = min(1, max(0, (besteAndre - minPoeng) / mål * 2)) * senhet
+            trygghet = min(1, max(0, (minPoeng - besteAndre) / mål * 2)) * senhet
+        }
+
         // Solo-amerikaner simuleres bare når hånden er i nærheten av å bære
-        // alle stikkene alene – ellers er −målPoeng gitt på forhånd.
+        // alle stikkene alene – desperasjon senker terskelen litt.
         let vurderSolo = lovlige.contains(.soloAmerikaner)
-            && estimat + Double(regler.antallByttekort) * 0.4 >= Double(alleStikk) - 2.5
+            && estimat + Double(regler.antallByttekort) * 0.4
+                >= Double(alleStikk) - 2.5 - desperasjon * 1.5
 
         var deklStikk: [(stikk: Int, vekt: Double)] = []
         var passVerdier: [(verdi: Double, vekt: Double)] = []
@@ -123,6 +149,7 @@ final class MesterAI {
         let deklVekt = max(1e-9, deklStikk.reduce(0) { $0 + $1.vekt })
         let passVekt = max(1e-9, passVerdier.reduce(0) { $0 + $1.vekt })
         let evPass = passVerdier.reduce(0) { $0 + $1.verdi * $1.vekt } / passVekt
+            + trygghet * 1.5
         var besteAction = BidAction.pass
         var besteEV = evPass
 
@@ -130,6 +157,7 @@ final class MesterAI {
             let p = deklStikk.filter { $0.stikk >= b }.reduce(0) { $0 + $1.vekt } / deklVekt
             // Budvinneren vinner/taper det dobbelte av budet.
             let ev = Double(2 * b) * (2 * p - 1)
+                + desperasjon * Double(b) * 0.6 - trygghet * Double(b) * 0.4
             if ev > besteEV {
                 besteAction = .bud(b)
                 besteEV = ev
@@ -139,6 +167,7 @@ final class MesterAI {
             // Amerikaner: laget må ta alle stikkene; budvinner ±målPoeng/2.
             let p = deklStikk.filter { $0.stikk >= alleStikk }.reduce(0) { $0 + $1.vekt } / deklVekt
             let ev = Double(regler.målPoeng / 2) * (2 * p - 1)
+                + desperasjon * Double(regler.målPoeng) * 0.10
             if ev > besteEV {
                 besteAction = .amerikaner
                 besteEV = ev
@@ -147,6 +176,7 @@ final class MesterAI {
         if vurderSolo, soloTalt > 0 {
             let p = soloKlart / soloTalt
             let ev = Double(regler.målPoeng) * (2 * p - 1)
+                + desperasjon * Double(regler.målPoeng) * 0.15
             if ev > besteEV {
                 besteAction = .soloAmerikaner
                 besteEV = ev

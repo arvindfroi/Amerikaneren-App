@@ -9,6 +9,10 @@ struct GameRules: Codable, Hashable {
     /// Byttekort-varianten: fire kort legges i en talong som budvinneren
     /// tar opp – og bytter ut fire valgfrie kort mot, skjult for de andre.
     var medByttekort: Bool = true
+    /// Alternativt partiformat: spill nøyaktig så mange runder og kår
+    /// vinneren på høyest sluttsum (nil = først til målPoeng vinner).
+    /// målPoeng styrer fortsatt Amerikaner-satsene.
+    var maksRunder: Int?
 
     var antallByttekort: Int { medByttekort ? 4 : 0 }
     var kortPerSpiller: Int { (52 - antallByttekort) / antallSpillere }
@@ -397,7 +401,13 @@ final class GameEngine {
         rundeResultater.append(resultat)
         sisteRunde = resultat
 
-        if scores.contains(where: { $0 >= rules.målPoeng }) {
+        let ferdig: Bool
+        if let maksRunder = rules.maksRunder {
+            ferdig = rundeResultater.count >= maksRunder
+        } else {
+            ferdig = scores.contains { $0 >= rules.målPoeng }
+        }
+        if ferdig {
             phase = .spillFerdig
         } else {
             phase = .rundeFerdig

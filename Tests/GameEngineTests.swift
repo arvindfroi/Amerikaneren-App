@@ -403,6 +403,50 @@ final class GameEngineTests: XCTestCase {
         }
     }
 
+    func testRundeformatSlutterEtterMaksRunder() {
+        var regler = GameRules()
+        regler.maksRunder = 3
+        let engine = GameEngine(rules: regler)
+        engine.startRunde(seed: 23)
+        var vakt = 0
+        while engine.phase != .spillFerdig, vakt < 5000 {
+            vakt += 1
+            switch engine.phase {
+            case .budrunde:
+                let seat = engine.aktivBudgiver
+                let lovlige = engine.lovligeBud(for: seat)
+                if engine.høyesteBud == nil, case .bud(let n)? = lovlige.dropFirst().first {
+                    engine.giBud(seat: seat, action: .bud(n))
+                } else {
+                    engine.giBud(seat: seat, action: .pass)
+                }
+            case .byttekort:
+                let seat = engine.budgiverSeat!
+                engine.kastByttekort(Array(engine.hands[seat].prefix(4)), seat: seat)
+            case .velgTrumf:
+                for suit in Suit.allCases {
+                    if let ønsket = engine.kortSomKanØnskes(trumf: suit).first,
+                       engine.velgTrumf(suit: suit, ønsket: ønsket) { break }
+                }
+            case .spill:
+                let seat = engine.aktivSpiller
+                engine.spill(kort: engine.lovligeKort(for: seat).first!, seat: seat)
+            case .rundeFerdig:
+                engine.nesteRunde()
+            default:
+                break
+            }
+        }
+        // Nøyaktig tre runder – uavhengig av poengsummene – og vinneren er
+        // den med høyest sum.
+        XCTAssertEqual(engine.phase, .spillFerdig)
+        XCTAssertEqual(engine.rundeResultater.count, 3)
+        XCTAssertNotNil(engine.vinnerSeat)
+        if let vinner = engine.vinnerSeat {
+            XCTAssertEqual(engine.scores[vinner], engine.scores.max())
+        }
+    }
+
     func testAIByrLovlig() {
         let engine = nyEngine()
         engine.startRunde(seed: 21)
