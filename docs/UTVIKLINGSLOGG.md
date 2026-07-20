@@ -28,6 +28,15 @@
   Utfallet vises for kontroll før føring, neste runde starter av seg
   selv på første spørsmål, og en påbegynt runde overlever at appen
   drepes. 6 nye flyt-tester (21 companion-tester totalt).
+- **Full sporing + spillestilanalyse**: rådata-typene skilt ut i
+  `Stats/Records.swift` (Foundation-rene) med nye felter – rundevarighet,
+  valgfri trumf i companion, poengmål per parti, utledet lagstikk.
+  Ny `Stats/Spillestil.swift`: **Budanalyse** («Budskolen») dømmer
+  budgivningen mot MesterAI-referansen (~89 % klaring) på klaringsrate
+  og margin, med poeng-lagt-igjen/tapt i klartekst, og **Makkerpar**
+  viser hvem som faktisk lykkes sammen – på tvers av fysiske og
+  digitale partier. Vises i statistikken; 8 nye tester (kjører også på
+  Linux).
 
 ## v0.9 – Datainnsamling, backend og treningsverktøy i repo
 

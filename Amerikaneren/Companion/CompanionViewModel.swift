@@ -38,6 +38,9 @@ final class CompanionViewModel: ObservableObject {
         var klarte: Bool
         var stikk: [Int]
         var poengEndring: [Int]
+        /// Valgfri sporing – med i statistikkgrunnlaget når de finnes.
+        var trumf: String?
+        var varighetSekunder: Int?
 
         func beskrivelse(spillere: [String]) -> String {
             let budTekst = bud >= 2000 ? "Solo-amerikaner"
@@ -95,11 +98,15 @@ final class CompanionViewModel: ObservableObject {
     @Published var bud = 5
     @Published var budtype: Budtype = .vanlig
     @Published var motstanderStikk: [Int] = []
+    /// Valgfritt: trumffargen budvinneren valgte (ett ekstra trykk for de
+    /// som vil ha trumfstatistikk også fra fysiske partier).
+    @Published var trumfvalg: Suit?
 
     /// Poengsatser – samme som motoren (GameRules).
     private let satser = GameRules()
 
     private var startTid = Date()
+    private var forrigeFøring = Date()
     private let lagringURL: URL?
 
     /// `lagringURL: nil` skrur av persistens (brukes i tester).
@@ -238,6 +245,7 @@ final class CompanionViewModel: ObservableObject {
         budtype = .vanlig
         steg = .velgBudgiver
         startTid = Date()
+        forrigeFøring = Date()
         partiPågår = true
         lagrePågåendeParti()
     }
@@ -330,8 +338,12 @@ final class CompanionViewModel: ObservableObject {
 
         runder.append(FørtRunde(
             budgiver: budgiver, makker: lag, bud: budtype.budVerdi ?? bud,
-            klarte: klarteBudet, stikk: stikkRad, poengEndring: endring
+            klarte: klarteBudet, stikk: stikkRad, poengEndring: endring,
+            trumf: trumfvalg?.navn,
+            varighetSekunder: Int(Date().timeIntervalSince(forrigeFøring))
         ))
+        forrigeFøring = Date()
+        trumfvalg = nil
 
         // Nullstill skjemaet – neste runde starter på første spørsmål.
         motstanderStikk = Array(repeating: 0, count: spillere.count)
@@ -389,15 +401,17 @@ final class CompanionViewModel: ObservableObject {
                 budgiverId: spillerIder[runde.budgiver],
                 makkerId: runde.makker.map { spillerIder[$0] },
                 bud: runde.bud,
-                trumf: nil,
+                trumf: runde.trumf,
                 klarte: runde.klarte,
                 stikk: Dictionary(uniqueKeysWithValues: zip(spillerIder, runde.stikk)),
-                poengEndring: Dictionary(uniqueKeysWithValues: zip(spillerIder, runde.poengEndring))
+                poengEndring: Dictionary(uniqueKeysWithValues: zip(spillerIder, runde.poengEndring)),
+                varighetSekunder: runde.varighetSekunder
             )
         }
         return MatchRecord(
             mode: .companion, deltakere: deltakere, runder: rundeRecords,
-            varighetSekunder: Int(Date().timeIntervalSince(startTid))
+            varighetSekunder: Int(Date().timeIntervalSince(startTid)),
+            målPoeng: aktivtMål
         )
     }
 

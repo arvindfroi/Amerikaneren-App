@@ -355,7 +355,8 @@ final class GameViewModel: ObservableObject {
         return MatchRecord(
             mode: mode, deltakere: deltakere, runder: runder,
             varighetSekunder: Int(Date().timeIntervalSince(startTid)),
-            kampanjeStageId: stage?.id
+            kampanjeStageId: stage?.id,
+            målPoeng: engine.rules.målPoeng
         )
     }
 

@@ -77,6 +77,41 @@ Inntil endepunktet er satt samler appen opptak lokalt (avgrenset kø) og
 laster opp automatisk første gang et endepunkt finnes – ingen data går
 tapt av at backenden kommer senere.
 
+## Companion-partier: alt sporbart lagres
+
+Fysiske partier har ingen kortdata, men ALT som kan observeres rundt
+bordet fanges i rå `MatchRecord`/`RoundRecord` (`Stats/Records.swift`):
+
+- per runde: budgiver, makker, bud/Amerikaner/solo, klarte/røk, hver
+  motstanders stikk, poengendring per spiller, valgfri trumf og
+  rundens varighet;
+- per parti: deltakerne i seterekkefølge med stabile id-er
+  (spillerregisteret, koblbart til Game Center-brukere), poengmål eller
+  åpent parti, vinner, sluttpoeng, dato og total varighet.
+
+Aggregater lagres aldri – alt (seiersprosent, H2H, makkerpar,
+budanalyse …) beregnes fra rådataene ved behov, så nye analyser virker
+på gamle partier. Når innlogging/brukere kommer, er det disse rå
+recordene som synkroniseres – id-skjemaet (`meg`/`companion-*`/
+`online-<gcId>`) er laget for å kunne kobles til kontoer i etterkant.
+
+## Spillestilanalyse: MesterAI som målestokk
+
+`Stats/Spillestil.swift` vurderer budgivning UTEN kortinformasjon, på
+samme poeng-payoffs som MesterAI optimaliserer (±2n/±n, ±50/±25, ±100):
+
+- **Budanalyse** per spiller: klaringsrate, snittmargin i klarte runder
+  (laget tok X mer enn budet – etterpåklokskapen vet at høyere bud
+  hadde holdt), poeng lagt igjen (3 per marginstikk), poeng tapt på
+  røkne bud (3×bud), og en dom mot MesterAI-referansen (~89 % målt
+  klaring, sone 80–90 %): «Byr for lavt» / «Godt kalibrert» / «Byr for
+  høyt», med konkret råd.
+- **Makkerpar**: uordnede par på tvers av alle modi – runder sammen,
+  klaringsrate og lagpoeng per runde. Hvem lykkes du egentlig med?
+
+Vises i statistikken («Budskolen» og «Makkerpar»), og fungerer likt for
+fysiske og digitale partier siden alt regnes fra samme rådata.
+
 ## Hvorfor menneskedata er verdt det
 
 Nettet er destillert fra MesterAI-søk. Ekte partier gir tre ting søket

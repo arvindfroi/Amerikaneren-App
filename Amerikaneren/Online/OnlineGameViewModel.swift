@@ -386,7 +386,8 @@ final class OnlineGameViewModel: ObservableObject {
         appState.registrerParti(MatchRecord(
             mode: setup.ranked ? .ranked : .online,
             deltakere: deltakere, runder: runder,
-            eloDelta: eloResultat?.delta
+            eloDelta: eloResultat?.delta,
+            målPoeng: setup.målPoeng
         ))
         // Ranked: oppdater rating lokalt og rapporter til ledertavlen.
         if setup.ranked, let resultat = eloResultat {
