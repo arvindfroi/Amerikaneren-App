@@ -494,4 +494,28 @@ final class GameEngineTests: XCTestCase {
             vakt += 1
         }
     }
+
+    // MARK: - Regeloppsett for andre spillertall (companion-modus)
+
+    func testKortfordelingOgSatserForAlleSpillertall() {
+        // Husregel med 4: 12 kort hver, 4 byttekort. Andre spillertall får
+        // resten av stokken som byttekort: 17/1, 10/2, 8/4.
+        XCTAssertEqual(GameRules(antallSpillere: 3).kortPerSpiller, 17)
+        XCTAssertEqual(GameRules(antallSpillere: 3).antallByttekort, 1)
+        XCTAssertEqual(GameRules(antallSpillere: 4).kortPerSpiller, 12)
+        XCTAssertEqual(GameRules(antallSpillere: 4).antallByttekort, 4)
+        XCTAssertEqual(GameRules(antallSpillere: 5).kortPerSpiller, 10)
+        XCTAssertEqual(GameRules(antallSpillere: 5).antallByttekort, 2)
+        XCTAssertEqual(GameRules(antallSpillere: 6).kortPerSpiller, 8)
+        XCTAssertEqual(GameRules(antallSpillere: 6).antallByttekort, 4)
+        // Klassisk variant uten byttekort: hele stokken deles.
+        XCTAssertEqual(GameRules(medByttekort: false).kortPerSpiller, 13)
+        XCTAssertEqual(GameRules(medByttekort: false).antallByttekort, 0)
+        // Poengsatsene følger husreglene: 2× makkeren, 50/25, solo 100.
+        let satser = GameRules()
+        XCTAssertEqual(satser.budgiverFaktor, 2)
+        XCTAssertEqual(satser.amerikanerPoeng, 50)
+        XCTAssertEqual(satser.amerikanerPoeng / 2, 25)
+        XCTAssertEqual(satser.soloAmerikanerPoeng, 100)
+    }
 }

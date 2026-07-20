@@ -14,9 +14,24 @@ struct GameRules: Codable, Hashable {
     /// målPoeng styrer fortsatt Amerikaner-satsene.
     var maksRunder: Int?
 
-    var antallByttekort: Int { medByttekort ? 4 : 0 }
-    var kortPerSpiller: Int { (52 - antallByttekort) / antallSpillere }
+    /// Husregel med 4 spillere: 12 kort hver og 4 byttekort. Andre
+    /// spillertall (companion-modus) får resten av stokken som byttekort:
+    /// 3 sp: 17 kort/1 byttekort, 5 sp: 10/2, 6 sp: 8/4. Uten
+    /// byttekort-varianten deles hele stokken (13 hver med 4 spillere).
+    var kortPerSpiller: Int {
+        if antallSpillere == 4 { return medByttekort ? 12 : 13 }
+        return 52 / antallSpillere
+    }
+    var antallByttekort: Int { 52 - antallSpillere * kortPerSpiller }
     var maksBud: Int { kortPerSpiller }
+
+    // Poengsatser (husreglene): budgiveren får alltid dobbelt av makkeren.
+    /// Tallbud n gir ±n·budgiverFaktor til budgiver og ±n til makker.
+    var budgiverFaktor: Int { 2 }
+    /// Amerikaner (alle stikk med makker): budgiver ±dette, makker halvparten.
+    var amerikanerPoeng: Int { målPoeng / 2 }
+    /// Solo-amerikaner (alle stikk helt alene): ±dette, ingen makker.
+    var soloAmerikanerPoeng: Int { målPoeng }
 }
 
 /// Fasene i en runde. String/Codable slik at online-protokollen kan
@@ -382,15 +397,15 @@ final class GameEngine {
         switch bud {
         case .soloAmerikaner:
             klarte = stikkTatt[budgiver] == rules.kortPerSpiller
-            budgiverPoeng = rules.målPoeng
+            budgiverPoeng = rules.soloAmerikanerPoeng
             makkerPoeng = 0
         case .amerikaner:
             klarte = lagStikk == rules.kortPerSpiller
-            budgiverPoeng = rules.målPoeng / 2
-            makkerPoeng = rules.målPoeng / 4
+            budgiverPoeng = rules.amerikanerPoeng
+            makkerPoeng = rules.amerikanerPoeng / 2
         case .bud(let mål):
             klarte = lagStikk >= mål
-            budgiverPoeng = mål * 2
+            budgiverPoeng = mål * rules.budgiverFaktor
             makkerPoeng = mål
         case .pass:
             klarte = false

@@ -1,5 +1,25 @@
 # Utviklingslogg
 
+## v0.10 – Companion-modus omarbeidet (portert fra parallellgren)
+
+- **Minimal føring**: per runde registreres bare budvinner, budtype,
+  makker og motstandernes stikk – lagets stikk, om budet holdt og alle
+  poengene regnes ut automatisk, med kontrolllinje før runden føres.
+- **Fleksible partier**: spill til valgfritt mål eller åpent parti som
+  avsluttes når som helst; 3–6 spillere med riktig kortfordeling
+  (17/1, 12/4, 10/2, 8/4). Angreknapp for feiltasting, og pågående parti
+  lagres fortløpende så appen kan lukkes midt i kvelden.
+- **Spillerregister** (`RegistrertSpiller`): faste profiler for folk du
+  spiller fysisk med, som kan kobles til Game Center-brukere – da telles
+  fysiske og online-partier mot samme person sammen i H2H.
+- `GameRules` fikk navngitte poengsatser (budgiverFaktor/amerikanerPoeng/
+  soloAmerikanerPoeng) som motoren og companion deler, og generalisert
+  kortfordeling for 3–6 spillere. 15 nye companion-tester (kjøres i CI)
+  + regeloppsett-test; poengreglene er identiske med motorens.
+- Grunnlaget er companion-arbeidet fra grenen
+  `claude/companion-mode-tricks-mgk2jp` (parallelt spor), tilpasset
+  motoren og husreglene i main.
+
 ## v0.9 – Datainnsamling, backend og treningsverktøy i repo
 
 - **Partiopptak**: motoren husker utdelingen gjennom runden, og hver

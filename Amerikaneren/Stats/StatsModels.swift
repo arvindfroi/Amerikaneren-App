@@ -98,7 +98,8 @@ struct AggregatedStats {
                     if runde.erAmerikanerMelding {
                         s.amerikanerMeldinger += 1
                         if runde.klarte { s.amerikanerKlart += 1 }
-                        s.sumBudStørrelse += 13
+                        // Amerikaner teller som maksbudet i snittberegningen.
+                        s.sumBudStørrelse += 12
                     } else {
                         s.sumBudStørrelse += runde.bud
                     }
