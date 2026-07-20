@@ -77,6 +77,18 @@ final class CompanionViewModel: ObservableObject {
     @Published private(set) var poeng: [Int] = []
     @Published private(set) var runder: [FørtRunde] = []
 
+    /// Bordmodus-flyten: appen ligger på bordet og stiller ett stort
+    /// spørsmål om gangen, i de tre øyeblikkene bordet naturlig har –
+    /// budrunden avgjort (hvem + hva), ønskekortet lagt (makkeren), og
+    /// runden ferdig (motstandernes stikk). Alt annet er utledet.
+    enum Føringssteg: String, Codable, Equatable {
+        case velgBudgiver   // «Hvem vant budrunden?»
+        case velgBud        // «Hva ble budet?»
+        case spilles        // poengtavle-hvile: makker-chips + stikk + før
+    }
+
+    @Published private(set) var steg: Føringssteg = .velgBudgiver
+
     // Skjema for gjeldende runde
     @Published var budgiver = 0
     @Published var makker = -1
@@ -224,8 +236,67 @@ final class CompanionViewModel: ObservableObject {
         makker = -1
         bud = 5
         budtype = .vanlig
+        steg = .velgBudgiver
         startTid = Date()
         partiPågår = true
+        lagrePågåendeParti()
+    }
+
+    // MARK: - Bordmodus: ett trykk per svar
+
+    /// Trykk 1: navnet som vant budrunden.
+    func velgBudgiver(_ sete: Int) {
+        guard spillere.indices.contains(sete) else { return }
+        budgiver = sete
+        if makker == sete { makker = -1 }
+        steg = .velgBud
+        lagrePågåendeParti()
+    }
+
+    /// Trykk 2: budet – et tall, Amerikaner eller solo.
+    func velgBud(_ tall: Int) {
+        guard (satser.minsteBud...totalStikk).contains(tall) else { return }
+        bud = tall
+        budtype = .vanlig
+        steg = .spilles
+        lagrePågåendeParti()
+    }
+
+    func velgAmerikaner() {
+        budtype = .amerikaner
+        steg = .spilles
+        lagrePågåendeParti()
+    }
+
+    func velgSolo() {
+        budtype = .solo
+        makker = -1
+        steg = .spilles
+        lagrePågåendeParti()
+    }
+
+    /// Trykk 3 (når ønskekortet legges): makkerens navn.
+    func velgMakker(_ sete: Int) {
+        guard spillere.indices.contains(sete), sete != budgiver, budtype != .solo else { return }
+        makker = sete
+        // Stikk ført på den som viste seg å være makker, nullstilles.
+        motstanderStikk[sete] = 0
+        lagrePågåendeParti()
+    }
+
+    /// Trykk 4–5 (rundeslutt): stikkene til én motstander, rett på tallet.
+    func settStikk(_ antall: Int, for sete: Int) {
+        guard motstandere.contains(sete), (0...totalStikk).contains(antall) else { return }
+        motstanderStikk[sete] = antall
+        lagrePågåendeParti()
+    }
+
+    /// Feiltrykk på navn eller bud: tilbake til budrunde-spørsmålene.
+    func tilbakeTilBudrunde() {
+        steg = .velgBudgiver
+        budtype = .vanlig
+        makker = -1
+        motstanderStikk = Array(repeating: 0, count: spillere.count)
         lagrePågåendeParti()
     }
 
@@ -262,12 +333,13 @@ final class CompanionViewModel: ObservableObject {
             klarte: klarteBudet, stikk: stikkRad, poengEndring: endring
         ))
 
-        // Nullstill skjemaet til neste runde.
+        // Nullstill skjemaet – neste runde starter på første spørsmål.
         motstanderStikk = Array(repeating: 0, count: spillere.count)
         budgiver = (budgiver + 1) % spillere.count
         makker = -1
         bud = 5
         budtype = .vanlig
+        steg = .velgBudgiver
         lagrePågåendeParti()
     }
 
@@ -282,6 +354,7 @@ final class CompanionViewModel: ObservableObject {
         motstanderStikk = spillere.indices.map { i in
             i == siste.budgiver || i == siste.makker ? 0 : siste.stikk[i]
         }
+        steg = .spilles
         lagrePågåendeParti()
     }
 
@@ -338,13 +411,21 @@ final class CompanionViewModel: ObservableObject {
         var runder: [FørtRunde]
         var budgiver: Int
         var startTid: Date
+        // Påbegynt runde (bordmodus) – valgfritt for bakoverkompatible filer.
+        var makker: Int?
+        var bud: Int?
+        var budtype: Budtype.RawValue?
+        var steg: Føringssteg?
+        var motstanderStikk: [Int]?
     }
 
     private func lagrePågåendeParti() {
-        guard let lagringURL else { return }
+        guard let lagringURL, partiPågår else { return }
         let lagret = LagretParti(
             spillere: spillere, spillerIder: spillerIder, aktivtMål: aktivtMål,
-            poeng: poeng, runder: runder, budgiver: budgiver, startTid: startTid
+            poeng: poeng, runder: runder, budgiver: budgiver, startTid: startTid,
+            makker: makker, bud: bud, budtype: budtype.rawValue,
+            steg: steg, motstanderStikk: motstanderStikk
         )
         do {
             try JSONEncoder().encode(lagret).write(to: lagringURL, options: .atomic)
@@ -366,10 +447,15 @@ final class CompanionViewModel: ObservableObject {
         runder = lagret.runder
         budgiver = min(lagret.budgiver, spillere.count - 1)
         startTid = lagret.startTid
-        motstanderStikk = Array(repeating: 0, count: spillere.count)
-        makker = -1
-        bud = 5
-        budtype = .vanlig
+        // Gjenopprett også en påbegynt runde, så en app som drepes midt i
+        // spillingen fortsetter nøyaktig der bordet var.
+        makker = lagret.makker ?? -1
+        bud = lagret.bud ?? 5
+        budtype = lagret.budtype.flatMap(Budtype.init(rawValue:)) ?? .vanlig
+        steg = lagret.steg ?? .velgBudgiver
+        let stikk = lagret.motstanderStikk ?? []
+        motstanderStikk = stikk.count == spillere.count
+            ? stikk : Array(repeating: 0, count: spillere.count)
         partiPågår = true
     }
 

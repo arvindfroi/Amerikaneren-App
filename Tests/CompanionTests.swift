@@ -333,4 +333,99 @@ final class CompanionTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
         XCTAssertFalse(CompanionViewModel(lagringURL: url).partiPågår)
     }
+
+    // MARK: - Bordmodus: ett trykk per svar
+
+    func testBordmodusFørerRundenMedSeksTrykk() {
+        let vm = nyttParti()
+        XCTAssertEqual(vm.steg, .velgBudgiver)
+
+        vm.velgBudgiver(1)                    // trykk 1: navnet
+        XCTAssertEqual(vm.steg, .velgBud)
+        vm.velgBud(7)                         // trykk 2: tallet
+        XCTAssertEqual(vm.steg, .spilles)
+        XCTAssertEqual(vm.budtype, .vanlig)
+        vm.velgMakker(2)                      // trykk 3: ønskekortet lagt
+        XCTAssertEqual(vm.makkerIndex, 2)
+        vm.settStikk(2, for: 0)               // trykk 4 og 5: stikkene
+        vm.settStikk(3, for: 3)
+        XCTAssertEqual(vm.lagetsStikk, 7)
+        XCTAssertTrue(vm.klarte)
+        vm.førRunde()                         // trykk 6: før runden
+        XCTAssertEqual(vm.poeng, [2, 14, 7, 3])
+        XCTAssertEqual(vm.steg, .velgBudgiver, "Neste runde starter på første spørsmål")
+    }
+
+    func testBordmodusSoloHopperOverMakkerTrykket() {
+        let vm = nyttParti()
+        vm.velgBudgiver(2)
+        vm.velgSolo()
+        XCTAssertEqual(vm.steg, .spilles)
+        XCTAssertTrue(vm.makkerValgt, "Solo trenger aldri makker-trykk")
+        XCTAssertTrue(vm.klarte, "Ingen stikk ført på motstanderne = soloen holdt")
+        vm.førRunde()
+        XCTAssertEqual(vm.poeng, [0, 0, 100, 0])
+    }
+
+    func testBordmodusUgyldigeTrykkIgnoreres() {
+        let vm = nyttParti()
+        vm.velgBudgiver(9)
+        XCTAssertEqual(vm.steg, .velgBudgiver, "Ukjent sete ignoreres")
+        vm.velgBudgiver(0)
+        vm.velgBud(3)
+        XCTAssertEqual(vm.steg, .velgBud, "Bud under minstebudet ignoreres")
+        vm.velgBud(13)
+        XCTAssertEqual(vm.steg, .velgBud, "Bud over rundens stikk ignoreres")
+        vm.velgBud(5)
+        vm.velgMakker(0)
+        XCTAssertNil(vm.makkerIndex, "Budgiveren kan ikke være sin egen makker")
+        vm.settStikk(4, for: 0)
+        XCTAssertEqual(vm.motstanderStikk[0], 0, "Budgiveren er ikke motstander")
+    }
+
+    func testBordmodusMakkervalgNullstillerFeilførteStikk() {
+        let vm = nyttParti()
+        vm.velgBudgiver(0)
+        vm.velgBud(6)
+        // Stikk føres på sete 2 før noen visste at 2 var makkeren.
+        vm.settStikk(3, for: 2)
+        vm.velgMakker(2)
+        XCTAssertEqual(vm.motstanderStikk[2], 0,
+                       "Makkerens stikk teller ikke som motstanderstikk")
+        XCTAssertEqual(vm.motstandere, [1, 3])
+    }
+
+    func testBordmodusTilbakeNullstillerSpørsmålene() {
+        let vm = nyttParti()
+        vm.velgBudgiver(1)
+        vm.velgBud(8)
+        vm.velgMakker(3)
+        vm.settStikk(2, for: 0)
+        vm.tilbakeTilBudrunde()
+        XCTAssertEqual(vm.steg, .velgBudgiver)
+        XCTAssertEqual(vm.makker, -1)
+        XCTAssertEqual(vm.motstanderStikk, [0, 0, 0, 0])
+    }
+
+    func testPåbegyntRundeOverleverAtAppenDrepes() {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("companion-test-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let vm = CompanionViewModel(lagringURL: url)
+        vm.oppføringer = [.init(navn: "Du"), .init(navn: "Ola"), .init(navn: "Kari"), .init(navn: "Per")]
+        vm.startParti()
+        vm.velgBudgiver(1)
+        vm.velgBud(7)
+        vm.velgMakker(2)
+        vm.settStikk(2, for: 0)
+
+        let gjenopprettet = CompanionViewModel(lagringURL: url)
+        XCTAssertEqual(gjenopprettet.steg, .spilles,
+                       "Bordet fortsetter nøyaktig der det var")
+        XCTAssertEqual(gjenopprettet.budgiver, 1)
+        XCTAssertEqual(gjenopprettet.bud, 7)
+        XCTAssertEqual(gjenopprettet.makkerIndex, 2)
+        XCTAssertEqual(gjenopprettet.motstanderStikk, [2, 0, 0, 0])
+    }
 }

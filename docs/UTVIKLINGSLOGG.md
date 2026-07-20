@@ -19,6 +19,15 @@
 - Grunnlaget er companion-arbeidet fra grenen
   `claude/companion-mode-tricks-mgk2jp` (parallelt spor), tilpasset
   motoren og husreglene i main.
+- **Bordmodus**: mobilen ligger flatt på bordet som poengtavle hele
+  kvelden (skjermen holdes våken), og hver runde føres med ~6 store
+  trykk i bordets tre naturlige øyeblikk: budrunden avgjort (navn +
+  bud/AMERIKANER/SOLO som kjempeknapper), ønskekortet lagt (ett trykk
+  på makkeren – stikk ført på feil person nullstilles automatisk), og
+  runden ferdig (ett trykk rett på stikktallet per motstander).
+  Utfallet vises for kontroll før føring, neste runde starter av seg
+  selv på første spørsmål, og en påbegynt runde overlever at appen
+  drepes. 6 nye flyt-tester (21 companion-tester totalt).
 
 ## v0.9 – Datainnsamling, backend og treningsverktøy i repo
 
