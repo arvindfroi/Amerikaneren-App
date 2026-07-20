@@ -24,7 +24,8 @@
   plikten når et menneske sitter som budvinner.
 - Merk: gamle rundeopptak der budvinneren åpnet utenom trumf avvises nå
   ved avspilling/import (ulovlig trekk) – og NevroHjerne-vektene bør
-  trenes om på selvspill under de rettede reglene.
+  trenes om på selvspill under de rettede reglene. Plan med kommandoer
+  og målte størrelser: `docs/RETRENING.md`.
 
 ## v0.12 – Grenene samlet
 
