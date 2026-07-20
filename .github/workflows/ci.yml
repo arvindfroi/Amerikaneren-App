@@ -17,6 +17,10 @@ jobs:
     name: Linux – kjernetester og MesterAI i aksjon
     runs-on: ubuntu-latest
     container: swift:6.0-noble
+    defaults:
+      run:
+        # Containerens standard-shell er dash, som mangler `set -o pipefail`.
+        shell: bash
     steps:
       - uses: actions/checkout@v5
 
