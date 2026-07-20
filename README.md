@@ -55,6 +55,7 @@ kommandolinjeverktøy:
 swift test                          # motor-, AI-, Elo- og companion-tester
 swift build -c release
 
+.build/release/Amerikaneren spill --navn Dere,Navn    # SPILL SELV: 2 mennesker + 2 President-AI-er (hot-seat)
 .build/release/Amerikaneren demo --seed 42            # se MesterAI spille, stikk for stikk
 .build/release/Amerikaneren arena --partier 10 --mot vanskelig   # mål styrken over mange partier
 .build/release/Amerikaneren companion                 # før poeng for et fysisk parti i terminalen

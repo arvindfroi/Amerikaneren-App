@@ -54,6 +54,13 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
+      - name: "Hot-seat-røyktest (menyene godtar alltid «1»)"
+        run: |
+          set -o pipefail
+          { printf '2\n'; yes 1; } | .build/release/Amerikaneren spill \
+            --seter menneske,president,menneske,president \
+            --seed 11 --runder 1 --tid 0.05 | tail -8
+
       - name: "Companion-poengføring: demo"
         run: |
           set -o pipefail

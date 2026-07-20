@@ -29,6 +29,12 @@ aksjon uten Mac eller iPhone:
   dermed inspiseres «in action» i nettleseren uten noe lokalt oppsett.
 - Målt i denne sandkassen (tid 0.05 s/trekk): MesterAI vant 3 av 4
   partier mot tre «Middels» med 85 % budtreff som budgiver.
+- **Hot-seat-spill i terminalen** (`spill`-kommandoen): mennesker og
+  AI-er om hverandre ved samme tastatur – f.eks. 2 mennesker mot 2
+  President-AI-er. Hendene skjules ved at skjermen tømmes når tastaturet
+  bytter spiller; alle valg (bud, vrak, trumf, etterlysning, kort) går
+  via nummererte menyer, så en «1»-strøm spiller alltid lovlig – det
+  brukes som røyktest i CI.
 
 ## v0.8 – Husregler, byttekort, solo-amerikaner og nevralt nett
 

@@ -21,12 +21,20 @@ Kommandoer:
              --mot NIVÅ     motstandernivå på sete 1–3 (standard vanskelig)
              --seed N, --runder N, --mål N, --tid SEK  som over
 
+  spill      Spill selv! Hot-seat med mennesker og AI-er ved samme
+             tastatur (hendene skjules når tastaturet bytter spiller).
+             --seter A,B,C,D  per sete: menneske|lett|middels|vanskelig|president
+                            (standard: menneske,president,menneske,president)
+             --navn X,Y     navn på menneskene i seterekkefølge
+             --seed N, --runder N, --mål N, --tid SEK  som over
+
   companion  Poengblokken for fysiske kort, i terminalen.
              --demo         kjør et scriptet eksempelparti (ikke interaktivt)
 
   hjelp      Denne teksten.
 
 Eksempler:
+  swift run -c release Amerikaneren spill --navn Arvind,Kari
   swift run -c release Amerikaneren demo --seed 42 --runder 6 --tid 0.05
   swift run -c release Amerikaneren arena --partier 10 --mot middels
   swift run -c release Amerikaneren companion --demo
@@ -119,6 +127,8 @@ case "demo":
     kjørDemo(argv)
 case "arena":
     kjørArena(argv)
+case "spill":
+    SpillKommando.kjør(argv: argv, innstillinger: lesInnstillinger(argv))
 case "companion":
     CompanionKommando.kjør(demo: argv.contains("--demo"))
 case nil, "hjelp", "--help", "-h":
