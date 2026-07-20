@@ -140,9 +140,13 @@ der – det er forbudt å ønske et vraket kort – så makkeren (eller
 motspilleren, ved solo) finnes alltid rundt bordet.
 
 I kortspillet måles hvert kandidatkort (etter sekvensreduksjon) over alle
-verdenene: budgiverlaget maksimerer sannsynligheten for å nå budet og
-deretter antall lagstikk; forsvaret det motsatte. Overstikk prioriteres
-aldri foran kontrakten – akkurat som poengreglene tilsier.
+verdenene i **forventet poengendring for eget sete minus motstandernes**,
+med motorens ekte satser (±2n/±n, Amerikaner-satsene, +1 per forsvarsstikk).
+Kontrakten dominerer av seg selv fordi den er de store poengene – men i
+motsetning til den gamle stikk-baserte målingen teller egne +1-stikk fullt
+når kontrakten alt er avgjort, en røket budgiver kjemper videre for å nekte
+forsvarerne poeng, og motstandere vektes hardere jo nærmere målstreken de
+står (å krysse 100 – eller fôre noen over – trumfer alle rundepoeng).
 
 Tidsbruken styres av `MesterKonfig` (verdener, sluttspillgrense og et mykt
 tidsbudsjett på ~0,45 s per trekk), så President-motstanderne føles kjappe
@@ -157,9 +161,10 @@ med en «Vanskelig» i samme sete – komplett system med nett aktivt:
 - **Hele partier til 100 poeng:** MesterAI vant 25 av 30 partier (83 %),
   mot 9 av 30 (30 %) for heuristikken – med 25 % som nøytralt
   utgangspunkt for fire like spillere.
-- **150 enkeltrunder:** 7,96 poeng per runde mot 5,22 for heuristikken.
-  Som budgiver klarte MesterAI 68 av 76 kontrakter (89 %); som makker
-  25 av 26.
+- **150 enkeltrunder:** 8,55 poeng per runde mot 4,13 for heuristikken
+  (målt etter overgangen til poengbasert målfunksjon; med den gamle
+  stikk-baserte målingen var tallet 7,92 samme dag). Som budgiver klarte
+  MesterAI 71 av 76 kontrakter (93 %); som makker 24 av 25.
 
 Dobbeltdummy-løseren er i tillegg verifisert identisk med en
 brute-force-minimax på 800 tilfeldige stillinger, hele runder

@@ -418,9 +418,11 @@ final class MesterAI {
     }
 
     /// Verdien av å legge `kandidat` i den samplede verdenen: spill grådig
-    /// fram til sluttspillgrensen, løs resten eksakt, og mål resultatet mot
-    /// meldingen. Budgiverlaget teller suksess først og stikk deretter;
-    /// forsvaret det motsatte.
+    /// fram til sluttspillgrensen, løs resten eksakt, og mål **forventet
+    /// poengendring for eget sete** minus motstandernes – vektet mot
+    /// stillingen i partiet. Kontrakten dominerer av seg selv (±2n/±n er
+    /// de store poengene), egne stikk teller fullt utenfor budlaget, og å
+    /// krysse målstreken (eller fôre en motstander over den) trumfer alt.
     private func vurder(kandidat: Int, verden: Verden, innsikt: Spillinnsikt, dd: Dobbeltdummy) -> Double {
         var t = Spilltilstand(
             hender: verden.hender, leder: innsikt.leder, pågående: innsikt.pågående,
@@ -434,7 +436,8 @@ final class MesterAI {
         }
         t = GrådigSpiller.spillUt(t, stoppVedStikkIgjen: konfig.eksaktStikkGrense, perSete: &perSete)
 
-        var lagStikk = dd.løs(t)
+        let ddLag = dd.løs(t)
+        var lagStikk = ddLag
         for s in 0..<4 where verden.lagMaske & (1 << UInt8(s)) != 0 {
             lagStikk += innsikt.stikkTatt[s] + perSete[s]
         }
@@ -445,13 +448,58 @@ final class MesterAI {
         case .amerikaner, .soloAmerikaner, .pass: mål = innsikt.stikkTotalt
         }
         let suksess = lagStikk >= mål
-        if innsikt.jegErBudgiverlag {
-            return (suksess ? 1000.0 : 0.0) + Double(lagStikk)
+
+        // Poengsatser som i motoren (GameEngine.avsluttRunde).
+        let budgiverPoeng: Int
+        let makkerPoeng: Int
+        switch innsikt.bud {
+        case .soloAmerikaner:
+            budgiverPoeng = innsikt.målPoeng; makkerPoeng = 0
+        case .amerikaner:
+            budgiverPoeng = innsikt.målPoeng / 2; makkerPoeng = innsikt.målPoeng / 4
+        case .bud(let n):
+            budgiverPoeng = n * innsikt.budgiverFaktor; makkerPoeng = n
+        case .pass:
+            budgiverPoeng = 0; makkerPoeng = 0
         }
-        // Forsvar: fell kontrakten først, ta forsvarsstikk deretter – og
-        // foretrekk egne stikk (egne poeng!) når det ellers står likt.
-        return (suksess ? 0.0 : 1000.0) + Double(innsikt.stikkTotalt - lagStikk)
-            + 0.3 * Double(perSete[innsikt.sete])
+
+        // Forsvarernes stikk er eksakte for den spilte/grådige delen; løserens
+        // hale gir bare lagets sum, så restforsvarsstikkene fordeles likt.
+        let spiltStikk = (0..<4).reduce(0) { $0 + innsikt.stikkTatt[$1] + perSete[$1] }
+        let haleForsvar = (innsikt.stikkTotalt - spiltStikk) - ddLag
+        let antallForsvarere = 4 - (0..<4).count { verden.lagMaske & (1 << UInt8($0)) != 0 }
+        let forsvarsAndel = antallForsvarere > 0 ? Double(haleForsvar) / Double(antallForsvarere) : 0
+
+        var delta = [Double](repeating: 0, count: 4)
+        for s in 0..<4 {
+            if s == innsikt.budgiver {
+                delta[s] = Double(suksess ? budgiverPoeng : -budgiverPoeng)
+            } else if verden.lagMaske & (1 << UInt8(s)) != 0 {
+                delta[s] = Double(suksess ? makkerPoeng : -makkerPoeng)
+            } else {
+                delta[s] = Double(innsikt.stikkTatt[s] + perSete[s]) + forsvarsAndel
+            }
+        }
+
+        // Egen poengendring minus motstandernes, vektet mot stillingen:
+        // en motstander nær målstreken er farligere å fôre enn en på bunn.
+        let meg = innsikt.sete
+        var verdi = delta[meg]
+        for s in 0..<4 where s != meg {
+            let nærhet = Double(min(innsikt.poengNå[s], innsikt.målPoeng)) / Double(innsikt.målPoeng)
+            verdi -= (1.0 + nærhet) / 3.0 * delta[s]
+        }
+
+        // Å vinne eller tape hele partiet trumfer rundepoengene.
+        if innsikt.harMålstrek {
+            let målstrek = Double(innsikt.målPoeng)
+            if Double(innsikt.poengNå[meg]) + delta[meg] >= målstrek {
+                verdi += målstrek
+            } else if (0..<4).contains(where: { $0 != meg && Double(innsikt.poengNå[$0]) + delta[$0] >= målstrek }) {
+                verdi -= målstrek
+            }
+        }
+        return verdi
     }
 
     // MARK: - Budvekting
