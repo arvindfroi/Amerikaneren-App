@@ -5,6 +5,11 @@ import Foundation
 struct MesterKonfig {
     /// Maks antall samplede verdener per kortvalg.
     var maksVerdener = 28
+    /// Verdenstak i sluttspillet, der hver verden løses eksakt uten grådig
+    /// fase og koster mikrosekunder: med det ordinære taket blir jevne valg
+    /// (typisk 4/9 mot 3/9 for hvem som sitter med hva) rene terningkast,
+    /// enda tidsbudsjettet rekker tusenvis av verdener.
+    var maksVerdenerSluttspill = 1200
     /// Minste antall verdener som alltid evalueres, uansett tidsbudsjett.
     var minVerdener = 8
     /// Når så mange stikk (eller færre) gjenstår, løses resten eksakt med
@@ -387,8 +392,13 @@ final class MesterAI {
 
         let frist = Date().addingTimeInterval(konfig.tidsbudsjett)
         var sum = [Double](repeating: 0, count: kandidater.count)
+        // Når hele resten løses eksakt gjelder sluttspillstaket; ellers det
+        // ordinære taket (der begrenser tidsbudsjettet uansett først).
+        let stikkIgjen = innsikt.antallKort[innsikt.leder] + (innsikt.pågående.isEmpty ? 0 : 1)
+        let tak = stikkIgjen <= konfig.eksaktStikkGrense
+            ? konfig.maksVerdenerSluttspill : konfig.maksVerdener
         var verdener = 0
-        while verdener < konfig.maksVerdener {
+        while verdener < tak {
             if verdener >= konfig.minVerdener, Date() >= frist { break }
             guard let verden = innsikt.sampleVerden(rng: &rng) else { break }
             // Verdener som strider mot budhistorikken teller mindre.

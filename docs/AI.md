@@ -150,7 +150,12 @@ står (å krysse 100 – eller fôre noen over – trumfer alle rundepoeng).
 
 Tidsbruken styres av `MesterKonfig` (verdener, sluttspillgrense og et mykt
 tidsbudsjett på ~0,45 s per trekk), så President-motstanderne føles kjappe
-også på eldre telefoner.
+også på eldre telefoner. Verdenstaket gjelder per fase: i sluttspillet –
+når hele resten løses eksakt – koster en verden mikrosekunder, og da
+gjelder et langt høyere tak (`maksVerdenerSluttspill`, 1200). Uten det
+avgjøres jevne sluttspillvalg (á la «hvem sitter med sparen» på 4/9 mot
+3/9) av samplingstøy fra ~30 verdener, enda budsjettet rekker tusenvis –
+det var nøyaktig slik A♠ røk i den dokumenterte stikk 11-posisjonen.
 
 ### Målt styrke
 
