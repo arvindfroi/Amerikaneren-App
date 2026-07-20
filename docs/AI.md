@@ -193,6 +193,36 @@ treningsharnessen.
    møtet med virkelig spill. Fargesymmetri-augmentering (fargene er
    logisk likeverdige) er innebygd i treningen for videre iterasjoner.
 
+## Veien videre (planlagt, i prioritert rekkefølge)
+
+Datainnsamlingen (docs/DATA.md) er fundamentet for alle stegene under –
+de tre første er avhengige av ekte menneskepartier for kalibrering.
+
+1. **Makker-modellering via policy-vekting**: `budVekt`-maskineriet
+   (verdener vektes mot budhistorikken) utvides til *spillhistorikken*:
+   hver samplet verden vektes med sannsynligheten for at makkeren/
+   motstanderne ville spilt kortene de faktisk har spilt, gitt verdenen.
+   Nettets spillhode brukes som policy-modell med en støyparameter per
+   spillertype – lav støy for President, høy for Lett, og for mennesker
+   kalibrert fra innsamlede partier.
+2. **Åpent konvensjonslag**: i situasjoner der simuleringen sier at to
+   kort er likeverdige (sekvensreduserte valg, avkast), velges kortet
+   etter en dokumentert konvensjon (høyt = styrke, lavt = svakhet).
+   Koster aldri stikk, men gir makkeren – menneske eller bot – ekstra
+   informasjon. Boten leser samme konvensjon via policy-vektingen over.
+3. **Per-makker ferdighetsmodell**: H2H-statistikken appen allerede
+   fører gir en enkel skalar per medspiller (hvor ofte holder
+   makkerens implisitte løfter?) som styrer støyparameteren i punkt 1
+   og hvor mye boten tør å lene seg på makkeren i budgivningen.
+4. **Ekspert-iterasjon runde 2**: sterkere lærer (større søkebudsjett)
+   → ny generasjon destilleringsdata + innsamlede menneskepartier
+   (`trainer importer`) → augmentert trening → forankret RL → samme
+   ærlige sluttport på ferske runder som sist.
+5. **Nett-prior i søket (AlphaZero-steget)**: spillhodets fordeling
+   brukes til å ordne og beskjære kandidatkort i `velgKort`, og
+   søkets besøksfordeling blir nye treningsmål for nettet – loopen som
+   gjorde AlphaZero sterk, tilpasset determinisert MC + eksakt løser.
+
 ### Rolle i President-boten
 
 Nettet erstatter ikke søket – det samarbeider med det: nettets

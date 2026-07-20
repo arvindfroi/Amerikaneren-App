@@ -14,9 +14,24 @@ struct GameRules: Codable, Hashable {
     /// målPoeng styrer fortsatt Amerikaner-satsene.
     var maksRunder: Int?
 
-    var antallByttekort: Int { medByttekort ? 4 : 0 }
-    var kortPerSpiller: Int { (52 - antallByttekort) / antallSpillere }
+    /// Husregel med 4 spillere: 12 kort hver og 4 byttekort. Andre
+    /// spillertall (companion-modus) får resten av stokken som byttekort:
+    /// 3 sp: 17 kort/1 byttekort, 5 sp: 10/2, 6 sp: 8/4. Uten
+    /// byttekort-varianten deles hele stokken (13 hver med 4 spillere).
+    var kortPerSpiller: Int {
+        if antallSpillere == 4 { return medByttekort ? 12 : 13 }
+        return 52 / antallSpillere
+    }
+    var antallByttekort: Int { 52 - antallSpillere * kortPerSpiller }
     var maksBud: Int { kortPerSpiller }
+
+    // Poengsatser (husreglene): budgiveren får alltid dobbelt av makkeren.
+    /// Tallbud n gir ±n·budgiverFaktor til budgiver og ±n til makker.
+    var budgiverFaktor: Int { 2 }
+    /// Amerikaner (alle stikk med makker): budgiver ±dette, makker halvparten.
+    var amerikanerPoeng: Int { målPoeng / 2 }
+    /// Solo-amerikaner (alle stikk helt alene): ±dette, ingen makker.
+    var soloAmerikanerPoeng: Int { målPoeng }
 }
 
 /// Fasene i en runde. String/Codable slik at online-protokollen kan
@@ -92,6 +107,12 @@ final class GameEngine {
     private(set) var rundeResultater: [RoundResult] = []
     private(set) var sisteRunde: RoundResult?
 
+    // Opptak: den utdelte starttilstanden beholdes gjennom runden, slik at
+    // en ferdigspilt runde kan lagres og spilles av på nytt (treningsdata).
+    private(set) var utdelteHender: [[Card]] = []
+    private(set) var utdeltTalon: [Card] = []
+    private(set) var førsteBudgiverIRunden: Int = 0
+
     init(rules: GameRules = GameRules()) {
         self.rules = rules
         self.scores = Array(repeating: 0, count: rules.antallSpillere)
@@ -103,14 +124,29 @@ final class GameEngine {
     // MARK: - Runde-oppsett
 
     func startRunde(seed: UInt64? = nil) {
-        precondition(phase == .venterPåStart || phase == .rundeFerdig)
         let stokk = Deck.stokket(seed: seed)
         let n = rules.antallSpillere
         let iSpill = stokk.count - rules.antallByttekort
-        hands = (0..<n).map { s in
+        let hender = (0..<n).map { s in
             stride(from: s, to: iSpill, by: n).map { stokk[$0] }.sortertForHånd()
         }
-        talon = Array(stokk.suffix(rules.antallByttekort))
+        startRunde(hender: hender, talon: Array(stokk.suffix(rules.antallByttekort)),
+                   førsteBudgiver: (dealer + 1) % n)
+    }
+
+    /// Starter en runde med en forhåndsbestemt utdeling – brukes av tester
+    /// og av avspilling av opptak (`Rundeopptak.spillAv`).
+    func startRunde(hender: [[Card]], talon nyTalon: [Card], førsteBudgiver: Int) {
+        precondition(phase == .venterPåStart || phase == .rundeFerdig)
+        precondition(hender.count == rules.antallSpillere)
+        precondition(hender.allSatisfy { $0.count == rules.kortPerSpiller })
+        precondition(nyTalon.count == rules.antallByttekort)
+        let n = rules.antallSpillere
+        hands = hender
+        talon = nyTalon
+        utdelteHender = hender
+        utdeltTalon = nyTalon
+        førsteBudgiverIRunden = førsteBudgiver
         kastet = []
         bids = []
         harPasset = []
@@ -128,7 +164,7 @@ final class GameEngine {
         stikkTatt = Array(repeating: 0, count: n)
         trickNummer = 0
         spilteKort = []
-        aktivBudgiver = (dealer + 1) % n
+        aktivBudgiver = førsteBudgiver
         phase = .budrunde
     }
 
@@ -361,15 +397,15 @@ final class GameEngine {
         switch bud {
         case .soloAmerikaner:
             klarte = stikkTatt[budgiver] == rules.kortPerSpiller
-            budgiverPoeng = rules.målPoeng
+            budgiverPoeng = rules.soloAmerikanerPoeng
             makkerPoeng = 0
         case .amerikaner:
             klarte = lagStikk == rules.kortPerSpiller
-            budgiverPoeng = rules.målPoeng / 2
-            makkerPoeng = rules.målPoeng / 4
+            budgiverPoeng = rules.amerikanerPoeng
+            makkerPoeng = rules.amerikanerPoeng / 2
         case .bud(let mål):
             klarte = lagStikk >= mål
-            budgiverPoeng = mål * 2
+            budgiverPoeng = mål * rules.budgiverFaktor
             makkerPoeng = mål
         case .pass:
             klarte = false

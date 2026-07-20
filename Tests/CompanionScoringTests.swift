@@ -21,7 +21,8 @@ final class CompanionScoringTests: XCTestCase {
     }
 
     func testKortPerSpillerFølgerAntallet() {
-        XCTAssertEqual(parti().kortPerSpiller, 13)
+        // Husregelen med 4 spillere: 12 kort hver, 4 i byttekort-talongen.
+        XCTAssertEqual(parti().kortPerSpiller, 12)
         XCTAssertEqual(parti(["A", "B", "C"]).kortPerSpiller, 17)
         XCTAssertEqual(parti(["A", "B", "C", "D", "E", "F"]).kortPerSpiller, 8)
     }

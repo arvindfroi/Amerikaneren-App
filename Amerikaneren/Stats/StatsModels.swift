@@ -1,52 +1,5 @@
 import Foundation
 
-enum MatchMode: String, Codable, CaseIterable {
-    case offline = "Mot maskinen"
-    case online = "Online"
-    case ranked = "Ranked"
-    case companion = "Companion"
-    case kampanje = "Kampanje"
-}
-
-/// Én deltaker i et registrert parti. CPU-er har opponentId satt.
-struct MatchParticipant: Codable, Hashable, Identifiable {
-    var id: String              // "meg", opponentId, eller companion-navn
-    var navn: String
-    var erMeg: Bool
-    var opponentId: String?
-    var sluttPoeng: Int
-    var vantPartiet: Bool
-}
-
-/// Én budrunde i et parti – grunnlaget for detaljert statistikk.
-struct RoundRecord: Codable, Hashable {
-    var budgiverId: String
-    var makkerId: String?
-    var bud: Int                 // 1000 = Amerikaner-melding
-    var trumf: String?
-    var klarte: Bool
-    var stikk: [String: Int]     // deltaker-id -> stikk
-    var poengEndring: [String: Int]
-
-    var erAmerikanerMelding: Bool { bud >= 1000 }
-}
-
-/// Et fullført parti.
-struct MatchRecord: Codable, Hashable, Identifiable {
-    var id: UUID = UUID()
-    var dato: Date = Date()
-    var mode: MatchMode
-    var deltakere: [MatchParticipant]
-    var runder: [RoundRecord]
-    var varighetSekunder: Int = 0
-    var kampanjeStageId: String? = nil
-    /// Ratingendring hvis partiet var ranked.
-    var eloDelta: Int? = nil
-
-    var vinner: MatchParticipant? { deltakere.first { $0.vantPartiet } }
-    var jegVant: Bool { vinner?.erMeg == true }
-}
-
 /// Aggregert statistikk, beregnet fra alle MatchRecords.
 struct AggregatedStats {
     var antallPartier = 0
@@ -98,7 +51,8 @@ struct AggregatedStats {
                     if runde.erAmerikanerMelding {
                         s.amerikanerMeldinger += 1
                         if runde.klarte { s.amerikanerKlart += 1 }
-                        s.sumBudStørrelse += 13
+                        // Amerikaner teller som maksbudet i snittberegningen.
+                        s.sumBudStørrelse += 12
                     } else {
                         s.sumBudStørrelse += runde.bud
                     }

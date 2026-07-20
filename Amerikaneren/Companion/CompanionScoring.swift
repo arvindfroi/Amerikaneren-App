@@ -41,7 +41,13 @@ struct CompanionParti: Codable {
         return navn
     }
 
-    var kortPerSpiller: Int { 52 / spillere.count }
+    /// Satser og kortfordeling deles med motoren (GameRules), så
+    /// companion-poengene aldri kan drive fra spillets egne regler.
+    private var regler: GameRules {
+        GameRules(antallSpillere: spillere.count, målPoeng: målPoeng)
+    }
+
+    var kortPerSpiller: Int { regler.kortPerSpiller }
 
     /// Spillerindekser sortert på poeng, best først.
     var sortert: [Int] {
@@ -70,8 +76,10 @@ struct CompanionParti: Codable {
             ? nil
             : makker.flatMap { $0 >= 0 ? $0 : nil }
 
-        let budgiverPoeng = erSolo ? målPoeng : erAmerikaner ? målPoeng / 2 : bud * 2
-        let makkerPoeng = erAmerikaner ? målPoeng / 4 : bud
+        let budgiverPoeng = erSolo ? regler.soloAmerikanerPoeng
+            : erAmerikaner ? regler.amerikanerPoeng
+            : bud * regler.budgiverFaktor
+        let makkerPoeng = erAmerikaner ? regler.amerikanerPoeng / 2 : bud
         endring[budgiver] = klarte ? budgiverPoeng : -budgiverPoeng
         if let makkerIndex { endring[makkerIndex] = klarte ? makkerPoeng : -makkerPoeng }
         for i in spillere.indices where i != budgiver && i != makkerIndex {

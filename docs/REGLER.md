@@ -11,7 +11,11 @@ og [kortregler.no/amerikaner](https://kortregler.no/amerikaner).
 - Ess er høyest, to er lavest. Ingen jokere.
 - Klassiske regler (13 kort, ingen talong) støttes via
   `GameRules.medByttekort = false`.
-- Companion-modus støtter 3–6 spillere med samme poenglogikk.
+- Companion-modus støtter 3–6 spillere med samme poenglogikk. Andre
+  spillertall får resten av stokken som byttekort: 3 spillere 17 kort/1
+  byttekort, 5 spillere 10/2, 6 spillere 8/4 (4 spillere: 12/4).
+  Poengsatsene er de samme uansett: 2× makkeren, Amerikaner ±50/±25,
+  solo-amerikaner ±100.
 
 ## Budrunden
 

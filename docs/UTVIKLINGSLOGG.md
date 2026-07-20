@@ -1,6 +1,18 @@
 # Utviklingslogg
 
-## v0.9 – Kjernen uten Mac: SwiftPM, CLI og companion-logikk på Linux
+## v0.12 – Grenene samlet
+
+- Parallellgrenen `claude/flawless-game-bot-2qez2n` (v0.9–v0.10 under)
+  flettet inn i main, som fra før hadde v0.11-arbeidet. Konflikten sto i
+  companion-modus: den omarbeidede view-modellen (bordmodus, lagring,
+  spillerregister) vant, mens den UI-frie `CompanionParti` består som
+  poengkjerne for CLI-et og testene – nå koblet til motorens navngitte
+  satser og kortfordeling (`GameRules`), så reglene har én kilde.
+- SwiftPM-modulen utvidet: `Innsamling/`, `Stats/Records.swift`,
+  `SpillerRegister.swift` og `Spillestil.swift` bygger og testes nå
+  også på Linux (view-modell-testene kjøres fortsatt kun i Xcode).
+
+## v0.11 – Kjernen uten Mac: SwiftPM, CLI og companion-logikk på Linux
 
 Forberedende arbeid for å kunne teste companion-modus og se MesterAI i
 aksjon uten Mac eller iPhone:
@@ -35,6 +47,72 @@ aksjon uten Mac eller iPhone:
   bytter spiller; alle valg (bud, vrak, trumf, etterlysning, kort) går
   via nummererte menyer, så en «1»-strøm spiller alltid lovlig – det
   brukes som røyktest i CI.
+
+## v0.10 – Companion-modus omarbeidet (portert fra parallellgren)
+
+- **Minimal føring**: per runde registreres bare budvinner, budtype,
+  makker og motstandernes stikk – lagets stikk, om budet holdt og alle
+  poengene regnes ut automatisk, med kontrolllinje før runden føres.
+- **Fleksible partier**: spill til valgfritt mål eller åpent parti som
+  avsluttes når som helst; 3–6 spillere med riktig kortfordeling
+  (17/1, 12/4, 10/2, 8/4). Angreknapp for feiltasting, og pågående parti
+  lagres fortløpende så appen kan lukkes midt i kvelden.
+- **Spillerregister** (`RegistrertSpiller`): faste profiler for folk du
+  spiller fysisk med, som kan kobles til Game Center-brukere – da telles
+  fysiske og online-partier mot samme person sammen i H2H.
+- `GameRules` fikk navngitte poengsatser (budgiverFaktor/amerikanerPoeng/
+  soloAmerikanerPoeng) som motoren og companion deler, og generalisert
+  kortfordeling for 3–6 spillere. 15 nye companion-tester (kjøres i CI)
+  + regeloppsett-test; poengreglene er identiske med motorens.
+- Grunnlaget er companion-arbeidet fra grenen
+  `claude/companion-mode-tricks-mgk2jp` (parallelt spor), tilpasset
+  motoren og husreglene i main.
+- **Bordmodus**: mobilen ligger flatt på bordet som poengtavle hele
+  kvelden (skjermen holdes våken), og hver runde føres med ~6 store
+  trykk i bordets tre naturlige øyeblikk: budrunden avgjort (navn +
+  bud/AMERIKANER/SOLO som kjempeknapper), ønskekortet lagt (ett trykk
+  på makkeren – stikk ført på feil person nullstilles automatisk), og
+  runden ferdig (ett trykk rett på stikktallet per motstander).
+  Utfallet vises for kontroll før føring, neste runde starter av seg
+  selv på første spørsmål, og en påbegynt runde overlever at appen
+  drepes. 6 nye flyt-tester (21 companion-tester totalt).
+- **Full sporing + spillestilanalyse**: rådata-typene skilt ut i
+  `Stats/Records.swift` (Foundation-rene) med nye felter – rundevarighet,
+  valgfri trumf i companion, poengmål per parti, utledet lagstikk.
+  Ny `Stats/Spillestil.swift`: **Budanalyse** («Budskolen») dømmer
+  budgivningen mot MesterAI-referansen (~89 % klaring) på klaringsrate
+  og margin, med poeng-lagt-igjen/tapt i klartekst, og **Makkerpar**
+  viser hvem som faktisk lykkes sammen – på tvers av fysiske og
+  digitale partier. Vises i statistikken; 8 nye tester (kjører også på
+  Linux).
+
+## v0.9 – Datainnsamling, backend og treningsverktøy i repo
+
+- **Partiopptak**: motoren husker utdelingen gjennom runden, og hver
+  ferdig runde kan fanges som et rått `Rundeopptak` (utdeling, budrunde,
+  vrak, trumf, alle 48 spilte kort, resultat) som spilles av og
+  regel-verifiseres trekk for trekk før det får bli data. Helt anonymt:
+  aldri navn eller ID-er, kun «menneske/CPU-nivå» per sete og dato.
+- **Innsamling med samtykke** (av som standard, ny bryter i
+  innstillingene): avgrenset kø på disk, batch-opplasting med
+  reprise-sikkerhet, giftige filer forkastes, køen slettes om samtykket
+  trekkes. Offline, kampanje og online (verten) dekkes.
+- **Backend-kode klar** i `Backend/valtown/` (Val Town/Deno + SQLite):
+  strukturell validering, idempotent lagring, døgn-nødbrems,
+  NDJSON-eksport for treneren. Hostingvalg utsatt – 5-minutters
+  deploy-oppskrift i Backend/README.md; appen samler lokalt inntil
+  endepunktet settes.
+- **Treningsverktøyene inn i repoet** (`Tools/trainer`, `Tools/harness`)
+  med symlenker til app-kildene – pipelinen overlever nå utenfor
+  utviklingsmiljøet. Ny `trainer importer` (innsamlede partier →
+  treningsdatasett, med full re-verifisering; tuklede partier avvises)
+  og `trainer syntetisk` (testdata i appens format). Kjeden testet
+  ende-til-ende.
+- **AI-veikart** i docs/AI.md: makker-modellering via policy-vekting,
+  åpent konvensjonslag, per-makker ferdighet, ekspert-iterasjon 2 og
+  nett-prior i søket. docs/DATA.md beskriver dataformat og personvern.
+- 4 nye tester (opptak-rundtur, tukle-avvisning, JSON-rundtur, kø);
+  27 totalt.
 
 ## v0.8 – Husregler, byttekort, solo-amerikaner og nevralt nett
 

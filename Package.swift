@@ -23,10 +23,14 @@ let package = Package(
                 "docs",
                 "project.yml",
                 "Tests",
+                "Tools",
+                "Backend",
                 "Amerikaneren/App",
                 "Amerikaneren/Game",
                 "Amerikaneren/Online",
-                "Amerikaneren/Stats",
+                "Amerikaneren/Stats/StatsModels.swift",
+                "Amerikaneren/Stats/StatsView.swift",
+                "Amerikaneren/Stats/HeadToHeadView.swift",
                 "Amerikaneren/Theme",
                 "Amerikaneren/Opponents",
                 "Amerikaneren/Campaign",
@@ -39,13 +43,19 @@ let package = Package(
                 "Amerikaneren/AI",
                 "Amerikaneren/Ranked",
                 "Amerikaneren/Companion/CompanionScoring.swift",
+                "Amerikaneren/Innsamling",
+                "Amerikaneren/Stats/Records.swift",
+                "Amerikaneren/Stats/SpillerRegister.swift",
+                "Amerikaneren/Stats/Spillestil.swift",
                 "CLI",
             ]
         ),
         .testTarget(
             name: "AmerikanerenTests",
             dependencies: ["Amerikaneren"],
-            path: "Tests"
+            path: "Tests",
+            // Tester view-modellen (SwiftUI) og kjøres derfor kun i Xcode.
+            exclude: ["CompanionTests.swift"]
         ),
     ]
 )

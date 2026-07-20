@@ -19,6 +19,8 @@ struct StatsView: View {
                     } else {
                         hovedtall(stats)
                         budStatistikk(stats)
+                        spillestilPanel
+                        makkerparPanel
                         moduser(stats)
                         h2hSeksjon
                         sisteKamper
@@ -97,6 +99,67 @@ struct StatsView: View {
                     statBoks(tall: "\(stats.lengsteSeiersrekke)", navn: "Beste rekke", farge: Theme.gul)
                     statBoks(tall: "\(stats.nåværendeRekke)", navn: "Rekke nå")
                     statBoks(tall: stats.besteScore == Int.min ? "–" : "\(stats.besteScore)", navn: "Beste score")
+                }
+            }
+        }
+    }
+
+    /// MesterAI-blikket på budgivningen din: er du kalibrert som boten?
+    private var spillestilPanel: some View {
+        let analyse = Budanalyse.beregn(for: "meg", fra: appState.partier)
+        return PapirPanel {
+            VStack(spacing: 10) {
+                Text("BUDSKOLEN")
+                    .font(Theme.kroppFont(13).weight(.heavy))
+                    .foregroundStyle(Theme.blekkSvak)
+                    .tracking(2)
+                HStack {
+                    Text(analyse.dom.rawValue)
+                        .font(Theme.kroppFont(18).weight(.heavy))
+                        .foregroundStyle(analyse.dom == .balansert ? Theme.grønn
+                                         : analyse.dom == .forLiteData ? Theme.blekkSvak : Theme.rød)
+                    Spacer()
+                    if analyse.budGitt > 0 {
+                        Text(String(format: "%.0f%%", analyse.klaringsrate * 100))
+                            .font(Theme.tallFont(28))
+                            .foregroundStyle(Theme.blekk)
+                    }
+                }
+                Text(analyse.råd)
+                    .font(Theme.kroppFont(13))
+                    .foregroundStyle(Theme.blekkSvak)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+    }
+
+    /// Hvem lykkes du med? Beregnet fra alle partier – også fysiske.
+    @ViewBuilder
+    private var makkerparPanel: some View {
+        let par = Makkerpar.beregn(fra: appState.partier)
+            .filter { $0.runderSammen >= 3 }
+            .prefix(4)
+        if !par.isEmpty {
+            PapirPanel {
+                VStack(spacing: 8) {
+                    Text("MAKKERPAR")
+                        .font(Theme.kroppFont(13).weight(.heavy))
+                        .foregroundStyle(Theme.blekkSvak)
+                        .tracking(2)
+                    ForEach(Array(par)) { p in
+                        HStack {
+                            Text(p.beskrivelse)
+                                .font(Theme.kroppFont(14).weight(.semibold))
+                                .foregroundStyle(Theme.blekk)
+                            Spacer()
+                            Text("\(p.klart)/\(p.runderSammen) bud")
+                                .font(Theme.kroppFont(13))
+                                .foregroundStyle(Theme.blekkSvak)
+                            Text(String(format: "%+.1f p/r", p.poengPerRunde))
+                                .font(Theme.kroppFont(14).weight(.heavy))
+                                .foregroundStyle(p.poengPerRunde >= 0 ? Theme.grønn : Theme.rød)
+                        }
+                    }
                 }
             }
         }
