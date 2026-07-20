@@ -43,6 +43,17 @@ Basert på [Wikipedia](https://no.wikipedia.org/wiki/Amerikaner_(kortspill)) og
 
 ## Teste uten Mac (Windows/Linux)
 
+### Aller enklest: spill i nettleseren med GitHub Codespaces
+
+Repoet har en devcontainer med Swift ferdig installert:
+
+1. Åpne repoet på GitHub → grønn **Code**-knapp → **Codespaces** →
+   **Create codespace**.
+2. Vent til terminalen nederst er klar (første gang bygges alt automatisk).
+3. Skriv: `.build/release/Amerikaneren spill --navn Deg,Medspiller`
+
+Gratis-kvoten på Codespaces (60 t/mnd) holder i massevis.
+
 ### Kjernen i terminalen: MesterAI og companion uten Apple-utstyr
 
 Spillmotoren, MesterAI/NevroHjerne, Elo og companion-poengføringen er ren

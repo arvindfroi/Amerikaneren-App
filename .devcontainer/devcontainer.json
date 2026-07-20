@@ -1,0 +1,10 @@
+{
+    "name": "Amerikaneren (Swift)",
+    "image": "swift:6.0-noble",
+    "postCreateCommand": "swift build -c release",
+    "customizations": {
+        "vscode": {
+            "extensions": ["swiftlang.swift-vscode"]
+        }
+    }
+}
