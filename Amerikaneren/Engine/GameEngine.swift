@@ -298,8 +298,10 @@ final class GameEngine {
     // MARK: - Stikkspill
 
     /// Lovlige kort for setet som er i tur. Følg farge om mulig.
-    /// Den som sitter med det ønskede kortet MÅ spille det første gang
-    /// vedkommende lovlig kan i første stikk.
+    /// I første stikk gjelder to plikter: budvinneren MÅ spille ut i
+    /// trumffargen (utspillet «viser» trumfen, og etterlysningen er alltid
+    /// i den fargen), og den som sitter med det ønskede kortet MÅ spille
+    /// det første gang vedkommende lovlig kan.
     func lovligeKort(for seat: Int) -> [Card] {
         guard phase == .spill, seat == aktivSpiller else { return [] }
         let hånd = hands[seat]
@@ -309,6 +311,13 @@ final class GameEngine {
             lovlige = samme.isEmpty ? hånd : samme
         } else {
             lovlige = hånd
+            // Utspillsplikt: budvinneren åpner første stikk i trumf, slik at
+            // det etterlyste kortet tvinges fram med en gang og makkeren
+            // avsløres i første stikk. Uten trumf på hånden spilles fritt.
+            if trickNummer == 0, seat == budgiverSeat, let trumf {
+                let trumfKort = hånd.filter { $0.suit == trumf }
+                if !trumfKort.isEmpty { lovlige = trumfKort }
+            }
         }
         // Makkerplikt: ønsket kort må legges i første stikk hvis det er lovlig.
         if trickNummer == 0, let ønsket = ønsketKort,

@@ -172,6 +172,11 @@ struct Spillinnsikt {
             if kortIdx / 13 != ledFarge {
                 forbudt[spillerSete] |= Kortmaske.fargeMaske(ledFarge)
             }
+            // Utspillsplikt: budgiveren må åpne første stikk i trumf, så et
+            // annet utspill beviser at budgiveren er renons i trumffargen.
+            if førsteStikk, spillerSete == budgiver, let trumfIdx, ledFarge != trumfIdx {
+                forbudt[budgiver] |= Kortmaske.fargeMaske(trumfIdx)
+            }
             guard førsteStikk, ønsketUte, let ø = øIdx,
                   spillerSete != budgiver, kortIdx != ø else { return }
             // Fulgte spilleren en annen farge var ønsket kort aldri lovlig;

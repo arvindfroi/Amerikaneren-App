@@ -102,6 +102,8 @@ MesterAI jukser aldri: den ser bare det setet lovlig kan se, samlet i
 slutninger et menneske kunne trukket:
 
 - **Renonser**: fulgte ikke et sete fargen, kan setet ikke ha den fargen.
+  Åpnet budgiveren første stikk utenom trumf (utspillsplikten krever
+  trumf når mulig), er budgiveren beviselig renons i trumffargen.
 - **Makkerplikt-slutning**: la et sete et annet kort enn det etterlyste i
   første stikk i en situasjon der plikten ville tvunget kortet fram, kan
   setet ikke ha det.
@@ -117,7 +119,8 @@ Beslutningene bygger på tre teknikker:
    grådig policy fram til `eksaktStikkGrense` stikk gjenstår (standard 6);
    resten løses optimalt med alfa-beta, transposisjonstabell og
    sekvensreduksjon (nabokort blant de gjenværende er likeverdige).
-   Løseren håndhever både farge-følging og makkerplikten i første stikk.
+   Løseren håndhever farge-følging, budvinnerens trumfutspill og
+   makkerplikten i første stikk.
 3. **Simulert budgivning** (`velgBud`): pass, laveste lovlige bud og
    Amerikaner sammenliknes på forventet poengsum over de samme samplede
    verdenene – budscenarioet spilles ut med hybrid grådig/eksakt løsning

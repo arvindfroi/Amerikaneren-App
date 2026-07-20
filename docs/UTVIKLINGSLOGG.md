@@ -1,5 +1,32 @@
 # Utviklingslogg
 
+## v0.13 – Regelfiks: første stikk åpnes i trumf
+
+- Feil funnet under spilltesting i CLI-et: budvinneren kunne spille ut
+  en annen farge enn trumf i første stikk, og da slapp den som satt med
+  det etterlyste kortet å legge det – makkeren kunne forbli hemmelig,
+  i strid med husreglene. Slik skal det være: budvinneren åpner første
+  stikk i trumffargen (det er slik trumfen «vises» fysisk), alle følger
+  farge, og makkeren tvinges dermed til å legge det etterlyste kortet i
+  første stikk.
+- Rettet i selve motoren (`GameEngine.lovligeKort`: utspillsplikt for
+  budvinneren i første stikk), så app-UI, online og CLI håndhever
+  regelen samme sted. Fallback: har budvinneren ingen trumf, står
+  utspillet fritt (og makkerplikten gjelder som før ved første lovlige
+  anledning).
+- Speilet i MesterAI-søkeren (`Spillregler.lovligMaske`), som simulerer
+  alle verdener/planer med samme plikt – bud-, vrak- og trumfvurderingen
+  regner nå riktig på at makkeren alltid avsløres i første stikk. Ny
+  slutning i `Spillinnsikt`: åpner budgiveren utenom trumf, er
+  budgiveren beviselig renons i trumf.
+- Ny motortest for utspillsplikten + re-verifisering i den
+  egenskapsbaserte testen og i `harness motorfuzz`. CLI-et forklarer
+  plikten når et menneske sitter som budvinner.
+- Merk: gamle rundeopptak der budvinneren åpnet utenom trumf avvises nå
+  ved avspilling/import (ulovlig trekk) – og NevroHjerne-vektene bør
+  trenes om på selvspill under de rettede reglene. Plan med kommandoer
+  og målte størrelser: `docs/RETRENING.md`.
+
 ## v0.12 – Grenene samlet
 
 - Parallellgrenen `claude/flawless-game-bot-2qez2n` (v0.9–v0.10 under)

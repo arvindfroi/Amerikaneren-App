@@ -251,9 +251,9 @@ final class GameEngineTests: XCTestCase {
         engine.velgTrumf(suit: .spar, ønsket: ønsket)
         guard let makker = engine.makkerSeat else { return XCTFail("Ingen makker") }
 
-        // Budgiver spiller ut trumf; når det blir makkerens tur og ønsket
-        // kort er lovlig, skal det være eneste lovlige kort.
-        let utspill = engine.hands[budgiver].first { $0.suit == .spar } ?? engine.hands[budgiver][0]
+        // Budgiver spiller ut (trumf, pga. utspillsplikten); når det blir
+        // makkerens tur skal det etterlyste kortet være eneste lovlige.
+        let utspill = engine.lovligeKort(for: budgiver).first!
         engine.spill(kort: utspill, seat: budgiver)
         while engine.aktivSpiller != makker, !engine.currentTrick.isEmpty {
             let seat = engine.aktivSpiller
@@ -264,6 +264,40 @@ final class GameEngineTests: XCTestCase {
         if utspill.suit == ønsket.suit {
             XCTAssertEqual(lovlige, [ønsket])
         }
+    }
+
+    func testBudvinnerMåSpilleUtTrumfIFørsteStikkOgMakkerAvsløres() {
+        let engine = nyEngine()
+        engine.startRunde(seed: 8)
+        let budgiver = vinnBudrundeOgVrak(engine)
+        // Velg en trumffarge budvinneren faktisk har kort i, med levende ønske.
+        guard let trumf = Suit.allCases.first(where: { farge in
+            engine.hands[budgiver].contains { $0.suit == farge }
+                && levendeØnske(engine, trumf: farge, budgiver: budgiver) != nil
+        }), let ønsket = levendeØnske(engine, trumf: trumf, budgiver: budgiver) else {
+            return XCTFail("Fant ingen brukbar trumffarge")
+        }
+        XCTAssertTrue(engine.velgTrumf(suit: trumf, ønsket: ønsket))
+
+        // Utspillsplikt: bare trumfkortene er lovlige utspill i første stikk.
+        let lovligeUtspill = engine.lovligeKort(for: budgiver)
+        XCTAssertFalse(lovligeUtspill.isEmpty)
+        XCTAssertTrue(lovligeUtspill.allSatisfy { $0.suit == trumf })
+        XCTAssertEqual(Set(lovligeUtspill),
+                       Set(engine.hands[budgiver].filter { $0.suit == trumf }))
+
+        // Spill første stikk ferdig: trumf ledes, så makkeren (som har det
+        // etterlyste trumfkortet) tvinges til å legge det – og avsløres.
+        while engine.phase == .spill, engine.trickNummer == 0 {
+            let seat = engine.aktivSpiller
+            let lovlige = engine.lovligeKort(for: seat)
+            if seat == engine.makkerSeat {
+                XCTAssertEqual(lovlige, [ønsket])
+            }
+            engine.spill(kort: lovlige.first!, seat: seat)
+        }
+        XCTAssertTrue(engine.ønsketLagt)
+        XCTAssertTrue(engine.makkerAvslørt)
     }
 
     func testFørstTilMålPoengVinnerSpillet() {
@@ -360,6 +394,13 @@ final class GameEngineTests: XCTestCase {
                     if let ledet = engine.currentTrick.first?.card.suit,
                        engine.hands[sete].contains(where: { $0.suit == ledet }) {
                         XCTAssertTrue(lovlige.allSatisfy { $0.suit == ledet })
+                    }
+                    // Utspillsplikt re-verifisert: budvinneren åpner første
+                    // stikk i trumf når trumf finnes på hånden.
+                    if engine.currentTrick.isEmpty, engine.trickNummer == 0,
+                       sete == engine.budgiverSeat, let trumf = engine.trumf,
+                       engine.hands[sete].contains(where: { $0.suit == trumf }) {
+                        XCTAssertTrue(lovlige.allSatisfy { $0.suit == trumf })
                     }
                     XCTAssertTrue(engine.spill(kort: kort, seat: sete))
                 default:
