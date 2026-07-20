@@ -43,6 +43,32 @@ Basert på [Wikipedia](https://no.wikipedia.org/wiki/Amerikaner_(kortspill)) og
 
 ## Teste uten Mac (Windows/Linux)
 
+### Kjernen i terminalen: MesterAI og companion uten Apple-utstyr
+
+Spillmotoren, MesterAI/NevroHjerne, Elo og companion-poengføringen er ren
+Foundation-Swift og bygger med SwiftPM på Linux og Windows (WSL) – helt
+uten Xcode. `Package.swift` i rota definerer kjernemodulen pluss et
+kommandolinjeverktøy:
+
+```bash
+# Swift 5.9+ (swift.org, swiftly, eller docker run -it swift:6.0)
+swift test                          # motor-, AI-, Elo- og companion-tester
+swift build -c release
+
+.build/release/Amerikaneren demo --seed 42            # se MesterAI spille, stikk for stikk
+.build/release/Amerikaneren arena --partier 10 --mot vanskelig   # mål styrken over mange partier
+.build/release/Amerikaneren companion                 # før poeng for et fysisk parti i terminalen
+.build/release/Amerikaneren hjelp                     # alle kommandoer og flagg
+```
+
+**Uten å installere noe som helst:** CI-en kjører det samme på hver push –
+Linux-jobben («Linux – kjernetester og MesterAI i aksjon») skriver en
+komplett MesterAI-demokamp, en miniarena med seiersprosenter og en
+companion-demo rett i jobbsammendraget (Actions-fanen → siste kjøring
+→ Summary).
+
+### Hele appen i nettleseren (simulatorbygg)
+
 CI-en bygger appen ved hver push og legger ut et **simulatorbygg** som
 artifact (Actions-fanen → siste kjøring → `Amerikaneren-simulator`).
 
@@ -96,11 +122,15 @@ Amerikaneren/
 ├── Campaign/      Kretser, scenarioer og fremdrift
 ├── Game/          Spillebord, kort, budpanel, oppsummeringer
 ├── Online/        Game Center-manager + lobby
-├── Companion/     Poengføring for fysiske partier
+├── Companion/     Poengføring for fysiske partier (logikken er UI-fri)
 ├── Stats/         Modeller, aggregering og H2H-visninger
 └── Theme/         Brain Training-designspråket (papir, blekk, maskot)
-Tests/             Enhetstester for motor og AI
+CLI/               Kommandolinjeverktøy: MesterAI-demo, arena og companion
+Tests/             Enhetstester for motor, AI og companion-poengføring
+Package.swift      SwiftPM-manifest – kjernen bygger på Linux/WSL uten Xcode
 ```
 
 Spillmotoren (`GameEngine`) er bevisst UI-fri og deterministisk (seedbar
 utdeling), slik at reglene er enhetstestet og gjenbrukbare for online-verten.
+Det samme gjelder companion-poengføringen (`CompanionParti`), som deles
+mellom appen, kommandolinjeverktøyet og testene.

@@ -1,5 +1,35 @@
 # Utviklingslogg
 
+## v0.9 – Kjernen uten Mac: SwiftPM, CLI og companion-logikk på Linux
+
+Forberedende arbeid for å kunne teste companion-modus og se MesterAI i
+aksjon uten Mac eller iPhone:
+
+- **SwiftPM-manifest** (`Package.swift`): motor, AI (MesterAI +
+  NevroHjerne), Elo og companion-poengføring bygger nå som én modul
+  (`Amerikaneren`) på Linux/WSL/macOS. Testene bruker samme
+  `@testable import Amerikaneren` som i Xcode-prosjektet, så ingen
+  testfiler måtte endres. Verifisert med Swift 6.0.3 på Ubuntu 24.04:
+  alle 44 tester grønne.
+- **Kommandolinjeverktøy** (`CLI/`): `demo` spiller et helt parti med
+  stikk-for-stikk-logg (seedbar), `arena` måler MesterAI mot valgfritt
+  nivå over mange partier (seiersprosent, budtreff, snittrunder), og
+  `companion` er poengblokken i terminalen – interaktiv eller som
+  scriptet demo. Setene styres med samme fallback-mønster som testene
+  (Mester → heuristikk → første lovlige).
+- **Companion-logikken trukket ut av UI-et**: ny UI-fri `CompanionParti`
+  (`Companion/CompanionScoring.swift`) eier poengreglene og
+  navnevalideringen; `CompanionViewModel` er nå bare skjematilstand som
+  delegerer. Ny testfil `CompanionScoringTests` dekker tallbud,
+  Amerikaner (±mål/2, ±mål/4), solo (±mål), makker-kanttilfeller og
+  3/6-spillervarianter.
+- **CI**: ny Linux-jobb (`swift:6.0-noble`-container) kjører
+  kjernetestene på hver push og legger en MesterAI-demokamp, en
+  miniarena og companion-demoen rett i jobbsammendraget – MesterAI kan
+  dermed inspiseres «in action» i nettleseren uten noe lokalt oppsett.
+- Målt i denne sandkassen (tid 0.05 s/trekk): MesterAI vant 3 av 4
+  partier mot tre «Middels» med 85 % budtreff som budgiver.
+
 ## v0.8 – Husregler, byttekort, solo-amerikaner og nevralt nett
 
 - **Regelverket omlagt til eierens husregler**: byttekort-talong (12 kort

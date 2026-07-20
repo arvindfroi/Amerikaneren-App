@@ -9,6 +9,73 @@ env:
   HOMEBREW_NO_AUTO_UPDATE: "1"
 
 jobs:
+  # Rask Linux-jobb uten Mac: bygger kjernen (motor, MesterAI, Elo og
+  # companion-poengføring) med SwiftPM, kjører alle enhetstestene og
+  # legger en MesterAI-demokamp + companion-demo i jobbsammendraget –
+  # slik at AI-en kan ses «i aksjon» rett i nettleseren.
+  linux-kjerne:
+    name: Linux – kjernetester og MesterAI i aksjon
+    runs-on: ubuntu-latest
+    container: swift:6.0-noble
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Kjør kjernetestene (SwiftPM)
+        run: |
+          set -o pipefail
+          swift test 2>&1 | tee kjernetest.log | tail -20
+
+      - name: Bygg kommandolinjeverktøyet (release)
+        run: swift build -c release
+
+      - name: "MesterAI i aksjon: demoparti"
+        run: |
+          set -o pipefail
+          .build/release/Amerikaneren demo --seed 42 --runder 4 --tid 0.05 | tee demo.log
+          {
+            echo "## 🃏 MesterAI i aksjon (seed 42, 4 runder, sete 0 = President)"
+            echo '```'
+            cat demo.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: "MesterAI i aksjon: miniarena"
+        run: |
+          set -o pipefail
+          .build/release/Amerikaneren arena --partier 3 --mot vanskelig --seed 7 --runder 8 --tid 0.05 | tee arena.log
+          {
+            echo "## 🏟️ Miniarena – MesterAI mot tre «Vanskelig» (3 partier à 8 runder)"
+            echo '```'
+            cat arena.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: "Companion-poengføring: demo"
+        run: |
+          set -o pipefail
+          .build/release/Amerikaneren companion --demo | tee companion.log
+          {
+            echo "## 📝 Companion-poengføring i aksjon"
+            echo '```'
+            cat companion.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Feillogg til sammendraget
+        if: failure()
+        run: |
+          {
+            echo "### ❌ Linux-jobben feilet – siste logglinjer"
+            echo '```'
+            for f in kjernetest.log demo.log arena.log companion.log; do
+              if [ -f "$f" ]; then
+                echo "== $f =="
+                tail -60 "$f"
+              fi
+            done
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
   build-and-test:
     name: Bygg, test og lag simulatorbygg
     runs-on: macos-15

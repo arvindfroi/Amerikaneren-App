@@ -1,24 +1,12 @@
 import Foundation
 import SwiftUI
 
-/// Poengføringslogikk for companion-modus.
+/// Skjematilstand for companion-modus. Selve poengføringen bor i den
+/// UI-frie `CompanionParti` (delt med kommandolinjeverktøyet og testene);
+/// view-modellen holder skjemaet og kobler resultatet til statistikken.
 @MainActor
 final class CompanionViewModel: ObservableObject {
-    struct FørtRunde: Codable {
-        var budgiver: Int
-        var makker: Int?
-        var bud: Int            // 1000 = Amerikaner, 2000 = solo-amerikaner
-        var klarte: Bool
-        var stikk: [Int]
-        var poengEndring: [Int]
-
-        func beskrivelse(spillere: [String]) -> String {
-            let budTekst = bud >= 2000 ? "Solo-amerikaner" : bud >= 1000 ? "Amerikaner" : "\(bud) stikk"
-            var tekst = "\(spillere[budgiver]): \(budTekst)"
-            if let makker { tekst += " (m/ \(spillere[makker]))" }
-            return tekst
-        }
-    }
+    typealias FørtRunde = CompanionParti.FørtRunde
 
     @Published var navneliste: [String] = ["", "", "", ""]
     @Published var mittNavn: String = "Du" {
@@ -27,9 +15,7 @@ final class CompanionViewModel: ObservableObject {
     @Published var målPoeng = 100
 
     @Published var partiPågår = false
-    @Published private(set) var spillere: [String] = []
-    @Published private(set) var poeng: [Int] = []
-    @Published private(set) var runder: [FørtRunde] = []
+    @Published private(set) var parti: CompanionParti?
 
     // Skjema for gjeldende runde
     @Published var budgiver = 0
@@ -42,57 +28,34 @@ final class CompanionViewModel: ObservableObject {
 
     private var startTid = Date()
 
+    var spillere: [String] { parti?.spillere ?? [] }
+    var poeng: [Int] { parti?.poeng ?? [] }
+    var runder: [FørtRunde] { parti?.runder ?? [] }
+    var sortert: [Int] { parti?.sortert ?? [] }
+    var ferdig: Bool { parti?.ferdig ?? false }
+    var kortPerSpiller: Int { parti?.kortPerSpiller ?? 13 }
+
     var kanStarte: Bool {
-        let navn = navneliste.map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
-        return navn.count >= 3 && Set(navn).count == navn.count
-    }
-
-    var kortPerSpiller: Int {
-        spillere.isEmpty ? 13 : 52 / spillere.count
-    }
-
-    var sortert: [Int] {
-        spillere.indices.sorted { poeng[$0] > poeng[$1] }
-    }
-
-    var ferdig: Bool {
-        poeng.contains { $0 >= målPoeng }
+        CompanionParti.gyldigeSpillere(navneliste) != nil
     }
 
     func startParti() {
-        spillere = navneliste
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty }
-        poeng = Array(repeating: 0, count: spillere.count)
-        stikk = Array(repeating: 0, count: spillere.count)
-        runder = []
+        guard let navn = CompanionParti.gyldigeSpillere(navneliste) else { return }
+        parti = CompanionParti(spillere: navn, målPoeng: målPoeng)
+        stikk = Array(repeating: 0, count: navn.count)
         budgiver = 0
         makker = -1
         startTid = Date()
         partiPågår = true
     }
 
-    /// Poengregler: budvinneren får alltid dobbelt av makkeren.
-    /// Tallbud n: ±2n / ±n. Amerikaner: ±målPoeng/2 / ±målPoeng/4.
-    /// Solo-amerikaner: ±målPoeng til solisten alene.
     func førRunde() {
-        var endring = Array(repeating: 0, count: spillere.count)
-        let budVerdi = erSolo ? 2000 : erAmerikaner ? 1000 : bud
-        let makkerIndex = erSolo || makker == budgiver ? nil : (makker >= 0 ? makker : nil)
-
-        let budgiverPoeng = erSolo ? målPoeng : erAmerikaner ? målPoeng / 2 : bud * 2
-        let makkerPoeng = erAmerikaner ? målPoeng / 4 : bud
-        endring[budgiver] = klarte ? budgiverPoeng : -budgiverPoeng
-        if let makkerIndex { endring[makkerIndex] = klarte ? makkerPoeng : -makkerPoeng }
-        for i in spillere.indices where i != budgiver && i != makkerIndex {
-            endring[i] += stikk[i]
-        }
-        for i in spillere.indices { poeng[i] += endring[i] }
-
-        runder.append(FørtRunde(
-            budgiver: budgiver, makker: makkerIndex, bud: budVerdi,
-            klarte: klarte, stikk: stikk, poengEndring: endring
-        ))
+        guard parti != nil else { return }
+        parti?.førRunde(
+            budgiver: budgiver, makker: makker >= 0 ? makker : nil, bud: bud,
+            erAmerikaner: erAmerikaner, erSolo: erSolo,
+            klarte: klarte, stikk: stikk
+        )
 
         // Nullstill skjemaet til neste runde.
         stikk = Array(repeating: 0, count: spillere.count)
@@ -105,12 +68,14 @@ final class CompanionViewModel: ObservableObject {
 
     func avbryt() {
         partiPågår = false
-        runder = []
+        parti = nil
     }
 
     /// Id-er: «meg» for spiller 0, companion-navn for resten – slik at
     /// H2H-statistikken også fungerer for vennene dine.
     func lagMatchRecord() -> MatchRecord {
+        let spillere = self.spillere
+        let poeng = self.poeng
         let ider = spillere.indices.map { $0 == 0 ? "meg" : "companion-\(spillere[$0].lowercased())" }
         let vinnerIndex = sortert.first
         let deltakere = spillere.indices.map { i in
