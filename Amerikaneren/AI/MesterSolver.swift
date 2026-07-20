@@ -13,7 +13,8 @@ struct Spilltilstand {
 }
 
 /// Felles trekklogikk for søker og utspillspolicy. Speiler `GameEngine`s
-/// regler (følg farge, makkerplikt i første stikk) på bitmasker.
+/// regler (følg farge, budvinnerens trumfutspill og makkerplikt i første
+/// stikk) på bitmasker.
 enum Spillregler {
     static func aktivtSete(_ t: Spilltilstand) -> Int {
         (t.leder + t.pågående.count) % 4
@@ -41,6 +42,10 @@ enum Spillregler {
         if let første = t.pågående.first {
             let følg = hånd & Kortmaske.fargeMaske(første.indeks / 13)
             if følg != 0 { m = følg }
+        } else if t.førsteStikk, sete == t.budgiver, let trumf = t.trumfFarge {
+            // Utspillsplikt: budvinneren åpner første stikk i trumf (om mulig).
+            let trumfKort = hånd & Kortmaske.fargeMaske(trumf)
+            if trumfKort != 0 { m = trumfKort }
         }
         if t.førsteStikk, let plikt = t.pliktkort, sete != t.budgiver,
            m & (1 << UInt64(plikt)) != 0 {

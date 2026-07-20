@@ -243,6 +243,10 @@ private struct Spillbord {
         visPrivat(sete: sete)
         if engine.currentTrick.isEmpty {
             print("Du spiller ut.")
+            if engine.trickNummer == 0, sete == engine.budgiverSeat,
+               let trumf = engine.trumf, lovlige.allSatisfy({ $0.suit == trumf }) {
+                print("Utspillsplikt: første stikk åpnes i trumf – da tvinges det etterlyste kortet fram.")
+            }
         } else {
             let lagt = engine.currentTrick.map { "\(navn[$0.seat]) \($0.card.kortSymbol)" }.joined(separator: "  ")
             print("På bordet: \(lagt)")

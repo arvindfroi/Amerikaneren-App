@@ -46,18 +46,26 @@ og [kortregler.no/amerikaner](https://kortregler.no/amerikaner).
 - Ved tallbud og Amerikaner blir spilleren som sitter med kortet
   budvinnerens **hemmelige makker**. Ved solo-amerikaner er
   etterlysningen valgfri og gir ingen makker – kortet må bare legges.
-- Makkerplikt: i **første stikk** må den som har kortet legge det ved
-  første lovlige anledning (`GameEngine.lovligeKort` returnerer da kun
-  det kortet). Da avsløres makkeren for alle – og «det første stikket»
-  er i praksis stikket der kortet tvinges fram; vinneren av det (som
-  regel makkeren, med den høye trumfen) spiller ut i neste stikk.
+- **Utspillsplikt**: budvinneren spiller ut først – og MÅ åpne **første
+  stikk i trumffargen**. I det fysiske spillet er det nettopp slik
+  trumfen vises: budvinneren legger et trumfkort på bordet og ber om et
+  kort i samme farge. Alle følger farge som vanlig.
+- **Makkerplikt**: fordi trumf ledes, er den som sitter med det
+  etterlyste kortet NØDT til å legge nettopp det kortet i første stikk
+  (`GameEngine.lovligeKort` returnerer da kun det kortet). Makkeren
+  avsløres altså for alle allerede i første stikk; vinneren av stikket
+  (som regel makkeren, med den høye trumfen) spiller ut i neste stikk.
+- Har budvinneren (mot formodning) valgt en trumffarge uten å ha kort i
+  den, står utspillet fritt – og makkerplikten gjelder da ved første
+  lovlige anledning i første stikk.
 - Det er **ikke lov** å etterlyse et kort man har på hånden eller selv
   har vraket – det etterlyste kortet sitter alltid hos en motspiller.
 
 ## Stikkspillet
 
-- Budvinneren spiller ut først. Følg farge om mulig; ellers fritt
-  (trumfe eller kaste).
+- Budvinneren spiller ut først – i første stikk alltid trumf
+  (utspillsplikten over). Følg farge om mulig; ellers fritt (trumfe
+  eller kaste).
 - Stikket vinnes av høyeste trumf, eller høyeste kort i utspillsfargen
   om ingen trumf er lagt. Vinneren spiller ut i neste stikk.
 - Det spilles med trumf i alle runder – også ved Amerikaner og
@@ -94,5 +102,6 @@ Budvinneren får alltid **dobbelt så mye** som makkeren.
   (companion-modusen dekker dem for fysisk spill). `GameRules` er
   parametrisert på spillertall, så det er forberedt.
 - Makkerplikten er tolket som «må legge kortet i første stikk hvis det er
-  lovlig» – kildene sier «må gi fra seg kortet», og dette er den vanligste
-  praktiseringen.
+  lovlig» – kildene sier «må gi fra seg kortet». Sammen med
+  utspillsplikten (budvinneren åpner i trumf) betyr det i praksis at
+  kortet alltid tvinges fram og makkeren avsløres i første stikk.

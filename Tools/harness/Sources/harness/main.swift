@@ -403,6 +403,14 @@ if kommando == "motorfuzz" {
                         føltIkkeFarge.append((sete, ledet))
                     }
                 }
+                // Utspillsplikt: budvinneren må åpne første stikk i trumf
+                // – har budvinneren trumf, er bare trumf lovlig i utspillet.
+                if engine.currentTrick.isEmpty, engine.trickNummer == 0,
+                   sete == engine.budgiverSeat, let trumf = engine.trumf,
+                   engine.hands[sete].contains(where: { $0.suit == trumf }) {
+                    sjekk(lovlige.allSatisfy { $0.suit == trumf },
+                          "utspillsplikten (trumf i første stikk) håndheves ikke", seed: seed)
+                }
                 // Makkerplikt: er det etterlyste kortet lovlig i første stikk,
                 // skal det være ENESTE lovlige.
                 if engine.trickNummer == 0, let ønsket = engine.ønsketKort, !engine.ønsketLagt,
