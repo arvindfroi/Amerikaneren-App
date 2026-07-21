@@ -37,6 +37,17 @@ import Glibc
 //   POST /spill       {"kort": "♠14"}
 //   POST /nesteRunde  {}
 //   POST /nyttParti   {}
+//   POST /angre       {}  tidsreise: tilbake til forrige punkt der mennesket
+//                     hadde et valg – AI-trekk hoppes over, og fasegrenser
+//                     innen runden krysses fritt (spill → trumfvalg → vrak
+//                     → budrunde)
+//   POST /gjenta      {}  frem igjen langs den angrede linjen: neste
+//                     menneskevalg utføres og AI-svarene som fulgte replays
+//                     – velger mennesket i stedet noe annet, klippes
+//                     fremtiden
+//   POST /omstart     {}  spill runden på nytt fra start med samme utdeling
+//                     og poengstilling (ved rundeslutt: runden som nettopp
+//                     ble ferdig) – AI-ene får ferske seeds
 //
 // Spillogg (~/spillogger/parti-<tidsstempel>.jsonl, én JSON-linje per
 // hendelse, i rekkefølge – «type»-feltet skiller):
@@ -56,6 +67,17 @@ import Glibc
 //                kan spilles av og verifiseres gjennom motoren med
 //                `Rundeopptak.spillAv(regler:)`, samme infrastruktur som
 //                treningsdataene bruker
+//   angre/gjenta/omstart
+//                tidsreise, logget eksplisitt med posisjon (antall hendelser
+//                i rundens historikk etter operasjonen) og antall hendelser
+//                angret/gjentatt/forkastet. Gjentatte trekk logges som
+//                trekk-linjer med «gjentatt»: true. Runder berørt av
+//                tidsreise/omspill merkes «øving»: true i rundeslutt og
+//                rundeopptak – de skal filtreres bort fra treningsdata,
+//                siden mennesket kan ha sett skjult informasjon eller prøvd
+//                flere linjer. Rundeopptaket avspeiler alltid den ENDELIGE
+//                tidslinjen som faktisk ble spilt ferdig, så `verifiser`
+//                godkjenner loggen som før
 //   partislutt   sluttpoeng og vinner
 //   avbrutt      partiet ble forlatt (nytt parti startet før mål)
 
@@ -244,6 +266,21 @@ final class WebSpilltjener {
     private var partiLoggetFerdig = false
     let navn: [String]
 
+    // Tidsreise (se «MARK: - Tidsreise og omspill»): rundens hendelser i
+    // kronologisk rekkefølge, den angrede fremtiden og bokføringen som gjør
+    // øvingsrunder filtrerbare i loggen. Alt lever på spillkøen.
+    private var historikk: [RundeHendelse] = []
+    private var fremtid: [RundeHendelse] = []
+    private var rundeØving = false            // runden er berørt av angre/omstart
+    private var poengVedRundestart: [Int] = []
+    private var tidsEpoke = 0     // bumpes ved hver tidsreise (og nytt parti) og
+                                  // inngår i beslutningsnøkkelen – nøkler
+                                  // gjenbrukes aldri på tvers av tidslinjer
+    private var omspillNr = 0     // blandes inn i AI-seedene: ferske AI-er per omspill
+    private var aiKonfig = MesterKonfig()
+    private var utdelingsMerke: [[Card]] = []   // oppdager motorens interne
+                                                // omdeling når alle passer
+
     // Pondering (se «MARK: - Pondering»): arbeiderne kjører på en egen
     // lavprioritetskø og deler bare det låsbeskyttede linjelageret med
     // spillkøen – de rører aldri `engine` eller `mestere`.
@@ -310,6 +347,12 @@ final class WebSpilltjener {
                 return håndterTrumf(kropp(kroppData))
             case "/spill":
                 return håndterSpill(kropp(kroppData))
+            case "/angre":
+                return håndterAngre()
+            case "/gjenta":
+                return håndterGjenta()
+            case "/omstart":
+                return håndterOmstart()
             default:
                 return (404, Data("{\"feil\":\"Ukjent adresse\"}".utf8))
             }
@@ -351,6 +394,7 @@ final class WebSpilltjener {
         let forslag = forslagFor(nøkkel: beslutningsnøkkel)
         invaliderPonder()
         engine.giBud(seat: 0, action: handling)
+        bokførMenneskeTrekk(.bud(sete: 0, handling: handling))
         var fulgt = false
         if case .bud(let anbefalt)? = forslag?.valg { fulgt = anbefalt == handling }
         loggMenneskeTrekk(fase: "budrunde", lovlige: lovlige.map(budId),
@@ -373,6 +417,7 @@ final class WebSpilltjener {
             return feil("Vraket må være nøyaktig \(antall) ulike kort fra hånden din.")
         }
         invaliderPonder()
+        bokførMenneskeTrekk(.vrak(sete: 0, kort: kort))
         var fulgt = false
         if case .vrak(let anbefalt)? = forslag?.valg { fulgt = anbefalt == Set(kort) }
         loggMenneskeTrekk(fase: "byttekort", lovlige: hånd.map(\.id),
@@ -400,6 +445,7 @@ final class WebSpilltjener {
                 : "Kortet kan ikke etterlyses – velg et trumfkort du verken har eller har vraket.")
         }
         invaliderPonder()
+        bokførMenneskeTrekk(.trumf(sete: 0, farge: farge, ønsket: ønsket))
         var fulgt = false
         if case .trumf(let aFarge, let aØnsket)? = forslag?.valg {
             fulgt = aFarge == farge && aØnsket == ønsket
@@ -425,10 +471,14 @@ final class WebSpilltjener {
         guard engine.spill(kort: kort, seat: 0) else {
             return feil("Kortet er ikke lovlig å spille nå (følg farge – og husk pliktene i første stikk).")
         }
+        let påAngretLinje = bokførMenneskeTrekk(.spill(sete: 0, kort: kort))
         // Ligger det en ferdig tenkt ponder-linje for kortet (eller et
         // likeverdig kort i samme sekvens), utfører kjørEttAITrekk AI-svarene
         // derfra øyeblikkelig – ellers beregnes de som vanlig.
         hentPonderLinje(for: kort, nøkkel: nøkkelFørTrekket)
+        // Fulgte mennesket den angrede linjen, er det fremtiden – ikke
+        // ponderen – som skal styre AI-svarene (eksakt replay).
+        if påAngretLinje { ventendeLinje = [] }
         var fulgt = false
         if case .kort(let anbefalt, let likeverdige)? = forslag?.valg {
             // Likeverdige kort (samme sekvens) teller som å følge forslaget.
@@ -441,13 +491,33 @@ final class WebSpilltjener {
         return (200, tilstand())
     }
 
-    /// Felles hale etter hvert utførte trekk (menneske eller AI): logg
-    /// rundeslutt om runden nettopp ble ferdig, og sett i gang neste
-    /// AI-trekk / trenerforslag.
+    /// Felles hale etter hvert utførte trekk (menneske eller AI): fang opp
+    /// intern omdeling, logg rundeslutt om runden nettopp ble ferdig, og
+    /// sett i gang neste AI-trekk / trenerforslag.
     private func etterTrekk() {
+        sjekkOmdeling()
         sjekkRundeSlutt()
         planleggAI()
         planleggForslag()
+    }
+
+    /// Passer alle i budrunden, deler motoren ut på nytt internt (samme
+    /// runde, ny utdeling). Da er rundens hendelseshistorikk foreldet –
+    /// tidsreisen kan ikke krysse en omdeling, for den gamle utdelingen
+    /// finnes ikke lenger i motoren. Historikk/fremtid nullstilles, og den
+    /// nye utdelingen logges som egen utdeling-linje.
+    private func sjekkOmdeling() {
+        guard engine.utdelteHender != utdelingsMerke else { return }
+        utdelingsMerke = engine.utdelteHender
+        historikk = []
+        fremtid = []
+        invaliderPonder()
+        tidsEpoke += 1
+        gjeldendeForslag = nil
+        skrivLogg(LoggUtdeling(runde: rundeNr,
+                               forsteBudgiver: engine.førsteBudgiverIRunden,
+                               hender: engine.utdelteHender.map { $0.map(\.id) },
+                               talon: engine.utdeltTalon.map(\.id)))
     }
 
     // MARK: - Parti- og AI-styring
@@ -470,21 +540,34 @@ final class WebSpilltjener {
             konfig.maksVerdener = 120
         }
         MesterAI.overstyrKonfig = konfig
+        aiKonfig = konfig
+        omspillNr = 0
+        tidsEpoke += 1   // beslutningsnøkler fra forrige parti skal aldri matche igjen
+        byggAIer()
+        gjeldendeForslag = nil
+        engine.startRunde(seed: rundeSeed())
+        loggNyRunde()
+    }
+
+    /// (Gjen)skaper de tre AI-ene og treneren. `omspillNr` blandes inn i
+    /// seedene, slik at omspilte runder får ferske, uavhengige AI-er
+    /// (stokastisk nye valg, samme styrke) – useedede partier er ferske
+    /// uansett.
+    private func byggAIer() {
         mestere = [:]
         for sete in 1...3 {
             mestere[sete] = MesterAI(
-                sete: sete, konfig: konfig,
-                seed: oppsett.seed.map { $0 &+ UInt64(sete) &* 7919 }
+                sete: sete, konfig: aiKonfig,
+                seed: oppsett.seed.map {
+                    $0 &+ UInt64(sete) &* 7919 &+ UInt64(omspillNr) &* 15_485_863
+                }
             )
         }
         // Treneren: en egen MesterAI for menneskets sete. Den ser aldri
         // skjult informasjon (alt går via Spillinnsikt) og bruker samme
         // romslige konfigurasjon som motstanderne.
-        trener = MesterAI(sete: 0, konfig: konfig,
-                          seed: oppsett.seed.map { $0 &+ 104_729 })
-        gjeldendeForslag = nil
-        engine.startRunde(seed: rundeSeed())
-        loggNyRunde()
+        trener = MesterAI(sete: 0, konfig: aiKonfig,
+                          seed: oppsett.seed.map { $0 &+ 104_729 &+ UInt64(omspillNr) &* 15_485_863 })
     }
 
     private func rundeSeed() -> UInt64? {
@@ -512,22 +595,43 @@ final class WebSpilltjener {
     private func kjørEttAITrekk() {
         aiPlanlagt = false
         guard let sete = seteITur, sete != 0 else { return }
+        // Gjenta-replay: står neste hendelse i den angrede fremtiden for tur
+        // hos akkurat denne AI-en, utføres den direkte i stedet for å
+        // beregnes – slik blir gjenta (og et manuelt gjentatt menneskevalg)
+        // en eksakt reise langs den gamle tidslinjen. Divergerer noe,
+        // klippes fremtiden og AI-en beregner som vanlig.
+        if let hendelse = fremtidAIHendelse(sete: sete) {
+            let fase = engine.phase.rawValue
+            let lovlige = lovligeForLogg(sete: sete)
+            if utfør(hendelse, på: engine) {
+                ventendeLinje = []   // fremtiden styrer – ingen ponder-rester
+                historikk.append(hendelse)
+                loggTrekk(fase: fase, sete: sete, lovlige: lovlige,
+                          valgt: hendelseId(hendelse), gjentatt: true)
+                etterTrekk()
+                return
+            }
+            fremtid = []   // burde ikke skje – linjen passer ikke lenger
+        }
         switch engine.phase {
         case .budrunde:
             let lovlige = engine.lovligeBud(for: sete)
             let valg = aiBud(sete: sete, mester: mestere[sete])
             engine.giBud(seat: sete, action: valg)
+            historikk.append(.bud(sete: sete, handling: valg))
             loggTrekk(fase: "budrunde", sete: sete,
                       lovlige: lovlige.map(budId), valgt: budId(valg))
         case .byttekort:
             let hånd = engine.hands[sete]
             let valg = aiVrak(sete: sete, mester: mestere[sete])
             engine.kastByttekort(valg, seat: sete)
+            historikk.append(.vrak(sete: sete, kort: valg))
             loggTrekk(fase: "byttekort", sete: sete, lovlige: hånd.map(\.id),
                       valgt: valg.map(\.id).joined(separator: "+"))
         case .velgTrumf:
             let (farge, ønsket) = aiTrumf(sete: sete, mester: mestere[sete])
             engine.velgTrumf(suit: farge, ønsket: ønsket)
+            historikk.append(.trumf(sete: sete, farge: farge, ønsket: ønsket))
             loggTrekk(fase: "velgTrumf", sete: sete,
                       lovlige: Suit.allCases.map(\.rawValue),
                       valgt: farge.rawValue + (ønsket.map { "+\($0.id)" } ?? ""))
@@ -538,6 +642,7 @@ final class WebSpilltjener {
             let ponderTreff = nesteVentendeTrekk(sete: sete, lovlige: lovlige)
             let valg = ponderTreff ?? aiKort(sete: sete, mester: mestere[sete])
             engine.spill(kort: valg, seat: sete)
+            historikk.append(.spill(sete: sete, kort: valg))
             loggTrekk(fase: "spill", sete: sete, lovlige: lovlige.map(\.id),
                       valgt: valg.id, ponder: ponderTreff != nil)
         default:
@@ -593,6 +698,246 @@ final class WebSpilltjener {
         return lovlige[0]
     }
 
+    // MARK: - Tidsreise og omspill (angre/gjenta/omstart)
+    //
+    // Rundens beslutninger føres i `historikk`. Angre kutter ved menneskets
+    // forrige valg og bygger motoren på nytt fra utdelingen + prefikset
+    // (samme avspillingsmekanisme som ponderens `klonMotor`); det avkuttede
+    // legges forrest i `fremtid`. Gjenta utfører neste menneskevalg derfra,
+    // og AI-svarene som fulgte replays trekk for trekk av `kjørEttAITrekk`
+    // til det igjen er menneskets tur. Velger mennesket noe annet enn den
+    // angrede linjen, klippes fremtiden. Omstart forkaster hele runden
+    // (også en nettopp ferdigspilt – resultatet rulles da tilbake) og
+    // starter den igjen med samme utdeling, ferske AI-seeds og nullstilt
+    // trenerstatistikk.
+    //
+    // Loggintegritet: hver operasjon logges eksplisitt, gjentatte trekk
+    // merkes, og runden merkes som øving i rundeslutt/rundeopptak –
+    // mennesket kan ha sett skjult informasjon eller prøvd linjer, så slike
+    // runder skal filtreres bort fra treningsdata. Rundeopptaket bygges som
+    // før av motoren selv, og motoren består etter tidsreise av nøyaktig de
+    // hendelsene som ble stående – opptaket avspeiler altså alltid den
+    // endelige tidslinjen, og `Amerikaneren verifiser` godkjenner som før.
+
+    /// Én utført beslutning i runden – nok til å spille runden av på nytt.
+    private enum RundeHendelse {
+        case bud(sete: Int, handling: BidAction)
+        case vrak(sete: Int, kort: [Card])
+        case trumf(sete: Int, farge: Suit, ønsket: Card?)
+        case spill(sete: Int, kort: Card)
+
+        var sete: Int {
+            switch self {
+            case .bud(let s, _), .vrak(let s, _), .trumf(let s, _, _), .spill(let s, _):
+                return s
+            }
+        }
+        var erMenneskevalg: Bool { sete == 0 }
+    }
+
+    /// Er vi i en pågående runde (fasene tidsreisen virker i)?
+    private var erIRunde: Bool {
+        switch engine.phase {
+        case .budrunde, .byttekort, .velgTrumf, .spill: return true
+        default: return false
+        }
+    }
+
+    /// Utfører en hendelse på en motor – samme kall som de vanlige
+    /// handlingene bruker, så motoren håndhever alle regler selv.
+    @discardableResult
+    private func utfør(_ hendelse: RundeHendelse, på motor: GameEngine) -> Bool {
+        switch hendelse {
+        case .bud(let sete, let handling): return motor.giBud(seat: sete, action: handling)
+        case .vrak(let sete, let kort): return motor.kastByttekort(kort, seat: sete)
+        case .trumf(_, let farge, let ønsket): return motor.velgTrumf(suit: farge, ønsket: ønsket)
+        case .spill(let sete, let kort): return motor.spill(kort: kort, seat: sete)
+        }
+    }
+
+    /// Hendelsens valg-id, i samme format som trekk-linjene i loggen bruker.
+    private func hendelseId(_ hendelse: RundeHendelse) -> String {
+        switch hendelse {
+        case .bud(_, let handling): return budId(handling)
+        case .vrak(_, let kort): return kort.map(\.id).joined(separator: "+")
+        case .trumf(_, let farge, let ønsket): return farge.rawValue + (ønsket.map { "+\($0.id)" } ?? "")
+        case .spill(_, let kort): return kort.id
+        }
+    }
+
+    /// Lovlige valg for setet i gjeldende fase, som logg-id-er.
+    private func lovligeForLogg(sete: Int) -> [String] {
+        switch engine.phase {
+        case .budrunde: return engine.lovligeBud(for: sete).map(budId)
+        case .byttekort: return engine.hands[sete].map(\.id)
+        case .velgTrumf: return Suit.allCases.map(\.rawValue)
+        case .spill: return engine.lovligeKort(for: sete).map(\.id)
+        default: return []
+        }
+    }
+
+    /// To hendelser er samme valg. Vraket sammenliknes som mengde – GUI-et
+    /// kan sende de samme kortene i en annen rekkefølge.
+    private func sammeValg(_ a: RundeHendelse, _ b: RundeHendelse) -> Bool {
+        switch (a, b) {
+        case (.bud(let s1, let h1), .bud(let s2, let h2)):
+            return s1 == s2 && h1 == h2
+        case (.vrak(let s1, let k1), .vrak(let s2, let k2)):
+            return s1 == s2 && Set(k1) == Set(k2)
+        case (.trumf(let s1, let f1, let ø1), .trumf(let s2, let f2, let ø2)):
+            return s1 == s2 && f1 == f2 && ø1 == ø2
+        case (.spill(let s1, let k1), .spill(let s2, let k2)):
+            return s1 == s2 && k1 == k2
+        default:
+            return false
+        }
+    }
+
+    /// Bygger motoren på nytt fra rundens utdeling + et hendelsesprefiks –
+    /// samme avspillingsmekanisme som `klonMotor(fra:)`, men til et valgt
+    /// punkt i runden. Poengstillingen fra rundestart gjenopprettes, så også
+    /// en nettopp ferdigspilt runde (der resultatet alt er lagt på) kan
+    /// rulles tilbake. Utdelingen leses fra motoren selv – den beholder
+    /// `utdelteHender`/`utdeltTalon` gjennom hele runden.
+    private func byggMotor(til prefiks: ArraySlice<RundeHendelse>) -> GameEngine? {
+        let motor = GameEngine(rules: engine.rules)
+        if poengVedRundestart.count == engine.rules.antallSpillere,
+           poengVedRundestart.allSatisfy({ $0 < engine.rules.målPoeng }) {
+            motor.settPoengstilling(poengVedRundestart)
+        }
+        motor.startRunde(hender: engine.utdelteHender, talon: engine.utdeltTalon,
+                         førsteBudgiver: engine.førsteBudgiverIRunden)
+        for hendelse in prefiks {
+            guard utfør(hendelse, på: motor) else { return nil }
+        }
+        return motor
+    }
+
+    /// Bokfører et utført menneskevalg og vedlikeholder den angrede
+    /// fremtiden: samme valg som i linjen beholder den (AI-svarene som
+    /// fulgte replays av `kjørEttAITrekk`), et annet valg klipper den.
+    /// Returnerer true når valget fulgte linjen.
+    @discardableResult
+    private func bokførMenneskeTrekk(_ hendelse: RundeHendelse) -> Bool {
+        historikk.append(hendelse)
+        if let neste = fremtid.first, sammeValg(neste, hendelse) {
+            fremtid.removeFirst()
+            return true
+        }
+        fremtid = []
+        return false
+    }
+
+    /// Neste hendelse fra den angrede fremtiden hvis den passer nøyaktig til
+    /// AI-ens gjeldende beslutningspunkt (riktig type, sete og fase) –
+    /// hendelsen tas da ut av fremtiden. Passer den ikke, har linjen
+    /// divergert, og hele fremtiden klippes.
+    private func fremtidAIHendelse(sete: Int) -> RundeHendelse? {
+        guard let neste = fremtid.first else { return nil }
+        let passer: Bool
+        switch (neste, engine.phase) {
+        case (.bud(let s, _), .budrunde),
+             (.vrak(let s, _), .byttekort),
+             (.trumf(let s, _, _), .velgTrumf),
+             (.spill(let s, _), .spill):
+            passer = s == sete && s != 0
+        default:
+            passer = false
+        }
+        guard passer else {
+            fremtid = []
+            return nil
+        }
+        fremtid.removeFirst()
+        return neste
+    }
+
+    /// POST /angre: tilbake til forrige punkt der mennesket hadde et valg.
+    /// AI-trekk hoppes over (å angre midt i en AI-rekke gir ikke mening), og
+    /// fasegrenser innen runden krysses fritt. Det avkuttede legges forrest
+    /// i fremtiden, klart for gjenta.
+    private func håndterAngre() -> (Int, Data) {
+        guard erIRunde else { return feil("Tidsreise virker bare i en pågående runde.") }
+        guard let kutt = historikk.lastIndex(where: { $0.erMenneskevalg }) else {
+            return feil("Ingenting å angre – du har ikke tatt noe valg i runden ennå.")
+        }
+        guard let motor = byggMotor(til: historikk[..<kutt]) else {
+            return feil("Klarte ikke å bygge tilstanden på nytt.")
+        }
+        invaliderPonder()
+        tidsEpoke += 1
+        let avkuttet = Array(historikk[kutt...])
+        historikk.removeSubrange(kutt...)
+        fremtid = avkuttet + fremtid
+        engine = motor
+        rundeØving = true
+        gjeldendeForslag = nil
+        skrivLogg(LoggTidsreise(type: "angre", runde: rundeNr, posisjon: historikk.count,
+                                antall: avkuttet.count, fase: engine.phase.rawValue))
+        etterTrekk()
+        return (200, tilstand())
+    }
+
+    /// POST /gjenta: neste menneskevalg fra den angrede linjen utføres, og
+    /// AI-svarene som fulgte replays trekk for trekk til det igjen er
+    /// menneskets tur – nøyaktig slik linjen var.
+    private func håndterGjenta() -> (Int, Data) {
+        guard erIRunde else { return feil("Tidsreise virker bare i en pågående runde.") }
+        guard seteITur == 0 else { return feil("Vent til det er din tur.") }
+        guard let neste = fremtid.first, neste.erMenneskevalg else {
+            return feil("Ingen angret linje å gjenta.")
+        }
+        let fase = engine.phase.rawValue
+        let lovlige = lovligeForLogg(sete: 0)
+        invaliderPonder()
+        tidsEpoke += 1
+        guard utfør(neste, på: engine) else {
+            fremtid = []
+            return feil("Den angrede linjen passer ikke lenger her.")
+        }
+        fremtid.removeFirst()
+        historikk.append(neste)
+        gjeldendeForslag = nil
+        skrivLogg(LoggTidsreise(type: "gjenta", runde: rundeNr, posisjon: historikk.count,
+                                antall: 1, fase: fase))
+        loggTrekk(fase: fase, sete: 0, lovlige: lovlige,
+                  valgt: hendelseId(neste), gjentatt: true)
+        etterTrekk()
+        return (200, tilstand())
+    }
+
+    /// POST /omstart: runden spilles på nytt fra start med samme utdeling og
+    /// poengstilling – også en nettopp ferdigspilt runde (resultatet rulles
+    /// da tilbake, og ny rundeslutt/rundeopptak skrives når omspillet blir
+    /// ferdig). AI-ene og treneren gjenskapes med ferske seeds: stokastisk
+    /// nye valg, samme styrke.
+    private func håndterOmstart() -> (Int, Data) {
+        guard engine.phase != .spillFerdig else {
+            return feil("Partiet er ferdig – start heller et nytt parti.")
+        }
+        guard erIRunde || engine.phase == .rundeFerdig else {
+            return feil("Ingen runde å spille om.")
+        }
+        guard let motor = byggMotor(til: historikk.prefix(0)) else {
+            return feil("Klarte ikke å bygge runden på nytt.")
+        }
+        invaliderPonder()
+        tidsEpoke += 1
+        let forkastet = historikk.count
+        historikk = []
+        fremtid = []
+        engine = motor
+        rundeØving = true
+        omspillNr += 1
+        byggAIer()
+        trenerStats = TrenerStatsJS()
+        gjeldendeForslag = nil
+        skrivLogg(LoggTidsreise(type: "omstart", runde: rundeNr, posisjon: 0,
+                                antall: forkastet, fase: engine.phase.rawValue))
+        etterTrekk()
+        return (200, tilstand())
+    }
+
     // MARK: - Treneren (forslag for menneskets valg)
 
     /// Trenerens anbefaling for ett beslutningspunkt, med både maskinlesbar
@@ -613,10 +958,12 @@ final class WebSpilltjener {
 
     /// Entydig nøkkel for menneskets gjeldende beslutningspunkt – nil når
     /// det ikke er menneskets tur. Hvert valg endrer budlisten, fasen
-    /// eller spilte kort, så nøkkelen er unik gjennom partiet.
+    /// eller spilte kort, og tidsepoken bumpes ved hver tidsreise (og hvert
+    /// nye parti), så nøkkelen gjenbrukes aldri – heller ikke når tidsreise
+    /// besøker samme beslutningspunkt flere ganger.
     private var beslutningsnøkkel: String? {
         guard seteITur == 0 else { return nil }
-        return "\(rundeNr):\(engine.phase.rawValue):\(engine.bids.count):\(engine.spilteKort.count)"
+        return "\(rundeNr):\(tidsEpoke):\(engine.phase.rawValue):\(engine.bids.count):\(engine.spilteKort.count)"
     }
 
     /// Legger beregningen av neste trenerforslag på køen når mennesket er i
@@ -1037,12 +1384,17 @@ final class WebSpilltjener {
         try? fil.write(contentsOf: data)
     }
 
-    /// Rundestart: nullstill trenerstatistikken og logg hele utdelingen
-    /// (alle hender + talong). Dette er grunnen til at den aktive loggen
-    /// er sperret for klienten til partiet er ferdig.
+    /// Rundestart: nullstill trenerstatistikken, tidsreise-bokføringen og
+    /// logg hele utdelingen (alle hender + talong). Dette er grunnen til at
+    /// den aktive loggen er sperret for klienten til partiet er ferdig.
     private func loggNyRunde() {
         trenerStats = TrenerStatsJS()
         gjeldendeForslag = nil
+        historikk = []
+        fremtid = []
+        rundeØving = false
+        poengVedRundestart = engine.scores
+        utdelingsMerke = engine.utdelteHender
         skrivLogg(LoggUtdeling(runde: rundeNr,
                                forsteBudgiver: engine.førsteBudgiverIRunden,
                                hender: engine.utdelteHender.map { $0.map(\.id) },
@@ -1050,10 +1402,11 @@ final class WebSpilltjener {
     }
 
     private func loggTrekk(fase: String, sete: Int, lovlige: [String], valgt: String,
-                           ponder: Bool? = nil) {
+                           ponder: Bool? = nil, gjentatt: Bool? = nil) {
         skrivLogg(LoggTrekk(runde: rundeNr, fase: fase, sete: sete,
                             lovlige: lovlige, valgt: valgt,
-                            forslag: nil, rangering: nil, fulgt: nil, ponder: ponder))
+                            forslag: nil, rangering: nil, fulgt: nil, ponder: ponder,
+                            gjentatt: gjentatt))
     }
 
     private func loggMenneskeTrekk(fase: String, lovlige: [String], valgt: String,
@@ -1061,7 +1414,7 @@ final class WebSpilltjener {
         skrivLogg(LoggTrekk(runde: rundeNr, fase: fase, sete: 0,
                             lovlige: lovlige, valgt: valgt,
                             forslag: forslag?.tekst, rangering: forslag?.js.rangering,
-                            fulgt: fulgt, ponder: nil))
+                            fulgt: fulgt, ponder: nil, gjentatt: nil))
         trenerStats.totalt += 1
         if fulgt {
             trenerStats.fulgt += 1
@@ -1079,9 +1432,11 @@ final class WebSpilltjener {
         skrivLogg(LoggRundeSlutt(runde: rundeNr, klarte: resultat.klarte,
                                  poengEndring: resultat.poengEndring,
                                  stikkPerSpiller: resultat.stikkPerSpiller,
-                                 poeng: engine.scores, trener: trenerStats))
+                                 poeng: engine.scores, trener: trenerStats,
+                                 øving: rundeØving ? true : nil))
         if let opptak = Rundeopptak(fra: engine) {
-            skrivLogg(LoggOpptak(runde: rundeNr, opptak: opptak))
+            skrivLogg(LoggOpptak(runde: rundeNr, opptak: opptak,
+                                 øving: rundeØving ? true : nil))
         }
         if engine.phase == .spillFerdig {
             skrivLogg(LoggSlutt(poeng: engine.scores, vinner: engine.vinnerSeat))
@@ -1144,8 +1499,9 @@ final class WebSpilltjener {
     private func tilstand() -> Data {
         var t = TilstandJS()
         t.fase = engine.phase.rawValue
-        t.runde = engine.rundeResultater.count
-            + (engine.phase == .rundeFerdig || engine.phase == .spillFerdig ? 0 : 1)
+        // Tjenerens rundeteller – ikke motorens rundehistorikk: tidsreise og
+        // omspill bygger motoren på nytt, og da er dens historikk tom.
+        t.runde = rundeNr
         t.maalPoeng = engine.rules.målPoeng
         t.navn = navn
         t.poeng = engine.scores
@@ -1207,6 +1563,12 @@ final class WebSpilltjener {
         t.trener = trenerStats
         t.forslagNokkel = beslutningsnøkkel
         t.loggNavn = loggNavn
+
+        // Tidsreise: hva er mulig akkurat nå, og er runden berørt (øving)?
+        t.kanAngre = erIRunde && historikk.contains { $0.erMenneskevalg }
+        t.kanGjenta = erIRunde && seteITur == 0 && (fremtid.first?.erMenneskevalg ?? false)
+        t.kanOmstarte = erIRunde || engine.phase == .rundeFerdig
+        t.oving = rundeØving
 
         // Sortert nøkkelrekkefølge gjør svaret deterministisk, slik at
         // klienten kan sammenlikne rå JSON og bare re-rendre ved endring.
@@ -1407,6 +1769,19 @@ private struct LoggTrekk: Codable {
     var fulgt: Bool?
     var ponder: Bool?                // kun AI-kortvalg: true = ferdig tenkt
                                      // fra ponderen, false = beregnet direkte
+    var gjentatt: Bool?              // true: trekket er replay av den angrede
+                                     // linjen (gjenta / manuelt samme valg)
+}
+
+/// Tidsreise-operasjonene, logget eksplisitt der de skjer i hendelsesstrømmen.
+private struct LoggTidsreise: Codable {
+    var type: String    // "angre" | "gjenta" | "omstart"
+    var runde: Int
+    var posisjon: Int   // antall hendelser i rundens historikk etter operasjonen
+    var antall: Int     // hendelser angret/forkastet – for gjenta: menneskevalget
+                        // (AI-replays følger som trekk-linjer med "gjentatt")
+    var fase: String    // fasen tidslinjen står i etter angre/omstart,
+                        // eller fasen menneskevalget ble gjentatt i
 }
 
 private struct LoggRundeSlutt: Codable {
@@ -1417,12 +1792,16 @@ private struct LoggRundeSlutt: Codable {
     var stikkPerSpiller: [Int]
     var poeng: [Int]
     var trener: TrenerStatsJS
+    var øving: Bool?          // true: runden er berørt av tidsreise/omspill –
+                              // filtreres bort fra fremtidig treningsdata
 }
 
 private struct LoggOpptak: Codable {
     var type = "rundeopptak"
     var runde: Int
-    var opptak: Rundeopptak   // avspillbar via Rundeopptak.spillAv(regler:)
+    var opptak: Rundeopptak   // avspillbar via Rundeopptak.spillAv(regler:) –
+                              // avspeiler alltid den endelige tidslinjen
+    var øving: Bool?          // som i rundeslutt: øvingsrunder filtreres bort
 }
 
 private struct LoggSlutt: Codable {
@@ -1478,6 +1857,10 @@ private struct TilstandJS: Codable {
     var forslagNokkel: String?     // satt når mennesket er i tur – klienten
                                    // henter /forslag når den endrer seg
     var loggNavn: String?
+    var kanAngre = false           // tidsreise: ⏪ mulig nå
+    var kanGjenta = false          // ⏩ mulig nå (angret linje venter)
+    var kanOmstarte = false        // 🔁 spill runden på nytt mulig nå
+    var oving = false              // runden er berørt av tidsreise/omspill
 }
 
 // MARK: - Den innebygde siden (alt inline – ingen eksterne avhengigheter)
@@ -1541,6 +1924,10 @@ button{font:inherit;background:var(--gull);color:#3a2a05;border:0;border-radius:
 button:hover{filter:brightness(1.08)}
 button:disabled{opacity:.4;cursor:default}
 button.sekundaer{background:#ffffff2b;color:#f2f2ea}
+#tidsreise{display:flex;gap:2px;align-items:center}
+#tidsreise button{font-size:.76rem;padding:5px 8px;white-space:nowrap}
+#ovingsmerke{background:#f0c75e26;border:1px solid var(--gull);color:var(--gull);
+             border-radius:8px;padding:3px 9px;font-size:.74rem;white-space:nowrap}
 #side{display:flex;flex-direction:column;gap:12px}
 .boks{background:#00000038;border:1px solid #ffffff22;border-radius:12px;padding:10px 12px}
 .boks h3{font-size:.78rem;text-transform:uppercase;letter-spacing:.8px;opacity:.8;margin-bottom:6px}
@@ -1574,6 +1961,12 @@ button.sekundaer{background:#ffffff2b;color:#f2f2ea}
   <h1>🇺🇸 Amerikaneren</h1>
   <div id="infolinje">Laster …</div>
   <div id="poengtavle"></div>
+  <span id="ovingsmerke" class="skjult" title="Runden er berørt av tidsreise/omspill – den merkes «øving» i loggen og filtreres fra treningsdata">🧪 Øvingsmodus</span>
+  <span id="tidsreise">
+    <button class="sekundaer" id="angreknapp" disabled title="Tilbake til forrige valg du tok (AI-trekk hoppes over)" onclick="post('/angre')">⏪ Angre</button>
+    <button class="sekundaer" id="gjentaknapp" disabled title="Frem igjen langs den angrede linjen" onclick="post('/gjenta')">⏩ Gjenta</button>
+    <button class="sekundaer" id="omstartknapp" disabled title="Samme utdeling og poengstilling, ferske AI-er – runden merkes som øving" onclick="bekreftOmstart()">🔁 Spill runden på nytt</button>
+  </span>
   <button class="sekundaer" id="trenerknapp" onclick="toggleTrener()">💡 Trener: på</button>
   <button class="sekundaer" onclick="if(confirm('Starte nytt parti?'))post('/nyttParti')">Nytt parti</button>
 </header>
@@ -1653,7 +2046,20 @@ function oppdater(t){
 function render(){
   const t = T; if (!t) return;
   renderTopp(t); renderSeter(t); renderStikkbord(t);
-  renderSide(t); renderTrener(t); renderFasepanel(t); renderHaand(t); renderOverlay(t);
+  renderSide(t); renderTrener(t); renderTidsreise(t);
+  renderFasepanel(t); renderHaand(t); renderOverlay(t);
+}
+
+function renderTidsreise(t){
+  document.getElementById('ovingsmerke').classList.toggle('skjult', !t.oving);
+  document.getElementById('angreknapp').disabled = !t.kanAngre;
+  document.getElementById('gjentaknapp').disabled = !t.kanGjenta;
+  document.getElementById('omstartknapp').disabled = !t.kanOmstarte;
+}
+
+function bekreftOmstart(){
+  if (confirm('Spille runden på nytt fra start med samme utdeling? Runden merkes som øving i loggen.'))
+    post('/omstart');
 }
 
 function renderTrener(t){
@@ -1867,8 +2273,11 @@ function renderOverlay(t){
           `<td>${a.valgt}</td><td>${a.forslag}</td></tr>`).join('') + '</table>';
     }
   }
+  if (t.oving) html += '<p style="margin-top:8px;font-size:.8rem;color:var(--gull)">🧪 Øvingsrunde – ' +
+    'tidsreise/omspill er brukt, runden er merket i loggen og filtreres fra treningsdata.</p>';
   html += t.fase === 'rundeFerdig'
-    ? `<button onclick="post('/nesteRunde')">Neste runde</button>`
+    ? `<button onclick="post('/nesteRunde')">Neste runde</button>` +
+      `<button class="sekundaer" onclick="bekreftOmstart()">🔁 Spill runden på nytt</button>`
     : `<button onclick="post('/nyttParti')">Nytt parti</button>`;
   if (t.fase === 'spillFerdig' && t.loggNavn)
     html += `<p style="font-size:.72rem;opacity:.75;margin-top:8px">Etterprøvbar spillogg: ` +
