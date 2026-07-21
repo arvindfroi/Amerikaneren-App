@@ -157,6 +157,17 @@ avgjøres jevne sluttspillvalg (á la «hvem sitter med sparen» på 4/9 mot
 3/9) av samplingstøy fra ~30 verdener, enda budsjettet rekker tusenvis –
 det var nøyaktig slik A♠ røk i den dokumenterte stikk 11-posisjonen.
 
+Konfigurasjonen er målt som et lokalt optimum (parrede selvspill-A/B mot
+3× Vanskelig, n=600 per akse): sluttspillstaket er verdt ≈1 poeng/runde
+(hele gevinsten realiseres alt ved ~600 verdener; 600/1200/2400 er et
+platå), mens endringer i minVerdener, eksaktStikkGrense, verdenerVedBud,
+verdenerVedBytte, budvekting og matchbevissthet alle måler null (±0,4).
+I speilmøter President mot President (539 hele partier) er fiksen nøytral
+– 48,6 % ± 4,2 seier – som ventet: verdien ligger i å straffe motstandere
+som faktisk gjør feil. Videre gevinst krever trolig kodegrep: NevroHjerne
+som utrullingspolicy i søket, forsvarssignalering, eller evolusjonssøk
+over heuristikkvektene.
+
 ### Målt styrke
 
 Benchmarks (release-bygg, faste frø, gjeldende regler med byttekort og
