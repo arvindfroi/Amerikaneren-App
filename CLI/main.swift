@@ -32,8 +32,11 @@ Kommandoer:
              mot tre President-AI-er. Binder kun til 127.0.0.1.
              Trener-modus (på som standard, bryter i GUI-et) viser MesterAIs
              anbefaling for hvert av dine valg – med EV-rangering ved
-             kortvalg. Hvert parti logges etterprøvbart til ~/spillogger/
-             (JSONL med Rundeopptak per runde; GET /logg lister dem).
+             kortvalg. Mens du tenker, ponderer AI-ene svarene sine på
+             kloner av motoren, så de kommer øyeblikkelig (og grundigere
+             tenkt) når du spiller. Hvert parti logges etterprøvbart til
+             ~/spillogger/ (JSONL med Rundeopptak per runde og
+             ponder-merking per AI-kortvalg; GET /logg lister dem).
              --port N       port (standard 8787)
              --navn X       navnet ditt (standard Arvind)
              --seed N, --mål N, --tid SEK  som over (standard tid her: 0.6)

@@ -13,6 +13,13 @@ import Glibc
 // tre President-AI-er (MesterAI). AI-trekkene kjøres automatisk på en
 // egen seriell kø etter hvert menneskelig trekk; klienten poller /state.
 //
+// Pondering: mens mennesket vurderer kortvalget sitt, tenker AI-ene
+// spekulativt på kloner av motoren – én linje per lovlig kandidat (etter
+// sekvensreduksjon, i trenerens EV-rekkefølge). Treffer mennesket en
+// ferdig tenkt linje, utføres AI-svarene øyeblikkelig – og de er tenkt
+// med romsligere tidsbudsjett enn direkteberegningen ville fått. Se
+// «MARK: - Pondering» for detaljene.
+//
 // API (alt sett fra sete 0 – de andre hendene, talongen og vraket
 // serialiseres aldri, så devtools avslører ingenting):
 //   GET  /state       full tilstand
@@ -39,7 +46,10 @@ import Glibc
 //                på den aktive loggen over
 //   trekk        ett valg: runde, fase, sete, lovlige valg, valgt – og for
 //                menneskets valg også trenerens forslag, kandidatrangering
-//                (ved kortvalg) og om forslaget ble fulgt
+//                (ved kortvalg) og om forslaget ble fulgt. AI-kortvalg får
+//                i tillegg «ponder»: true når trekket kom ferdig tenkt fra
+//                ponder-mellomlageret, false når det ble beregnet direkte –
+//                slik kan hvert AI-trekk etterprøves mot kilden sin
 //   rundeslutt   poengendringer, stikk per sete, sluttpoeng og
 //                trenerstatistikken for runden
 //   rundeopptak  hele runden som `Rundeopptak` (Innsamling/Opptak.swift) –
@@ -234,6 +244,21 @@ final class WebSpilltjener {
     private var partiLoggetFerdig = false
     let navn: [String]
 
+    // Pondering (se «MARK: - Pondering»): arbeiderne kjører på en egen
+    // lavprioritetskø og deler bare det låsbeskyttede linjelageret med
+    // spillkøen – de rører aldri `engine` eller `mestere`.
+    private let ponderKø = DispatchQueue(label: "amerikaneren.webspill.ponder",
+                                         qos: .utility, attributes: .concurrent)
+    private let ponderLås = NSLock()
+    private var ponderEpoke = 0                        // låst: bumpes ved hver tilstandsendring
+    private var ponderNøkkel: String?                  // låst: beslutningsnøkkelen linjene gjelder
+    private var ponderLinjer: [Card: [PonderTrekk]] = [:]  // låst: representant → ferdig AI-linje
+    private var ponderRepresentant: [Card: Card] = [:] // kun spillkøen: lovlig kort → sekvensrepresentant
+    private var ventendeLinje: [PonderTrekk] = []      // kun spillkøen: treff under utførelse
+    /// Romslig tidsbudsjett per spekulativt AI-trekk – ponderen har god tid
+    /// mens mennesket tenker, så svarene blir grundigere enn direkteberegningen.
+    private static let ponderTid = 0.8
+
     private static let loggKatalog = FileManager.default
         .homeDirectoryForCurrentUser.appendingPathComponent("spillogger")
 
@@ -270,6 +295,7 @@ final class WebSpilltjener {
                 return (200, tilstand())
             case "/nesteRunde":
                 guard engine.phase == .rundeFerdig else { return feil("Runden er ikke ferdig.") }
+                invaliderPonder()
                 rundeNr += 1
                 engine.startRunde(seed: rundeSeed())
                 loggNyRunde()
@@ -323,6 +349,7 @@ final class WebSpilltjener {
         let lovlige = engine.lovligeBud(for: 0)
         guard lovlige.contains(handling) else { return feil("Budet er ikke lovlig nå.") }
         let forslag = forslagFor(nøkkel: beslutningsnøkkel)
+        invaliderPonder()
         engine.giBud(seat: 0, action: handling)
         var fulgt = false
         if case .bud(let anbefalt)? = forslag?.valg { fulgt = anbefalt == handling }
@@ -345,6 +372,7 @@ final class WebSpilltjener {
         guard kort.count == antall, engine.kastByttekort(kort, seat: 0) else {
             return feil("Vraket må være nøyaktig \(antall) ulike kort fra hånden din.")
         }
+        invaliderPonder()
         var fulgt = false
         if case .vrak(let anbefalt)? = forslag?.valg { fulgt = anbefalt == Set(kort) }
         loggMenneskeTrekk(fase: "byttekort", lovlige: hånd.map(\.id),
@@ -371,6 +399,7 @@ final class WebSpilltjener {
                 ? "Etterlysning er obligatorisk (bare solo-amerikaner kan droppe den)."
                 : "Kortet kan ikke etterlyses – velg et trumfkort du verken har eller har vraket.")
         }
+        invaliderPonder()
         var fulgt = false
         if case .trumf(let aFarge, let aØnsket)? = forslag?.valg {
             fulgt = aFarge == farge && aØnsket == ønsket
@@ -391,10 +420,15 @@ final class WebSpilltjener {
             return feil("Mangler eller ugyldig «kort».")
         }
         let lovlige = engine.lovligeKort(for: 0)
-        let forslag = forslagFor(nøkkel: beslutningsnøkkel)
+        let nøkkelFørTrekket = beslutningsnøkkel
+        let forslag = forslagFor(nøkkel: nøkkelFørTrekket)
         guard engine.spill(kort: kort, seat: 0) else {
             return feil("Kortet er ikke lovlig å spille nå (følg farge – og husk pliktene i første stikk).")
         }
+        // Ligger det en ferdig tenkt ponder-linje for kortet (eller et
+        // likeverdig kort i samme sekvens), utfører kjørEttAITrekk AI-svarene
+        // derfra øyeblikkelig – ellers beregnes de som vanlig.
+        hentPonderLinje(for: kort, nøkkel: nøkkelFørTrekket)
         var fulgt = false
         if case .kort(let anbefalt, let likeverdige)? = forslag?.valg {
             // Likeverdige kort (samme sekvens) teller som å følge forslaget.
@@ -419,6 +453,7 @@ final class WebSpilltjener {
     // MARK: - Parti- og AI-styring
 
     private func byggParti() {
+        invaliderPonder()
         // Lukk (og eventuelt «avbrutt»-merk) forrige partis logg mens den
         // gamle motoren ennå har poengstillingen, og åpne en ny.
         åpneNyLogg()
@@ -498,9 +533,13 @@ final class WebSpilltjener {
                       valgt: farge.rawValue + (ønsket.map { "+\($0.id)" } ?? ""))
         case .spill:
             let lovlige = engine.lovligeKort(for: sete)
-            let valg = aiKort(sete: sete, mester: mestere[sete])
+            // Ponder-treff utføres øyeblikkelig (validert mot lovlige kort);
+            // ellers vanlig beregning. Kilden logges per trekk.
+            let ponderTreff = nesteVentendeTrekk(sete: sete, lovlige: lovlige)
+            let valg = ponderTreff ?? aiKort(sete: sete, mester: mestere[sete])
             engine.spill(kort: valg, seat: sete)
-            loggTrekk(fase: "spill", sete: sete, lovlige: lovlige.map(\.id), valgt: valg.id)
+            loggTrekk(fase: "spill", sete: sete, lovlige: lovlige.map(\.id),
+                      valgt: valg.id, ponder: ponderTreff != nil)
         default:
             break
         }
@@ -593,8 +632,12 @@ final class WebSpilltjener {
 
     private func beregnForslag() {
         forslagPlanlagt = false
-        guard let nøkkel = beslutningsnøkkel, gjeldendeForslag?.nøkkel != nøkkel else { return }
-        gjeldendeForslag = lagForslag(nøkkel: nøkkel)
+        guard let nøkkel = beslutningsnøkkel else { return }
+        if gjeldendeForslag?.nøkkel != nøkkel { gjeldendeForslag = lagForslag(nøkkel: nøkkel) }
+        // Med forslaget på plass (og dermed trenerens sekvensreduksjon og
+        // EV-rangering) kan ponderingen starte: AI-ene tenker spekulativt
+        // videre mens mennesket bestemmer seg.
+        planleggPonder()
     }
 
     /// Forslaget for nøkkelen – fra mellomlageret, ellers beregnet nå.
@@ -678,6 +721,274 @@ final class WebSpilltjener {
         return (try? koder.encode(verdi)) ?? Data("{}".utf8)
     }
 
+    // MARK: - Pondering (spekulativ AI-tenking mens mennesket velger kort)
+    //
+    // Når det er menneskets tur i kortspillfasen, er spillkøen ellers ledig
+    // – mennesket kan bruke mange sekunder på valget. Den tiden utnyttes:
+    // for hvert av menneskets lovlige kort (etter sekvensreduksjon, i
+    // trenerens EV-rekkefølge – de beste kandidatene er mest sannsynlige og
+    // tenkes på først) klones motoren, kandidaten spilles, og ferske
+    // MesterAI-er beregner AI-svarene som følger i samme stikk (maks 3) med
+    // romslig tidsbudsjett. Spiller mennesket så et ferdigtenkt kort,
+    // utføres AI-svarene øyeblikkelig i stedet for å beregnes på nytt.
+    //
+    // Kapasitetsvett: arbeidet skjer på en egen kø med QoS .utility og maks
+    // to samtidige beregninger (evolusjonsprosessen og spillkøen skal ha
+    // kjernene), alltid på kloner – spillkøen blokkeres aldri. Ved enhver
+    // tilstandsendring bumpes en epoketeller; løpende beregninger ser det
+    // ved neste sjekkpunkt og forkaster resultatet sitt stille.
+
+    /// Ett spekulativt AI-trekk i en ferdig tenkt linje.
+    private struct PonderTrekk {
+        var sete: Int
+        var kort: Card
+    }
+
+    /// Verdibilde av motoren – alt som trengs for å bygge en tro klon ved å
+    /// spille rundens hendelser av på en fersk `GameEngine`, pluss fasit for
+    /// verifisering. Rene verdityper, derfor trygt å dele med
+    /// ponder-arbeiderne på tvers av køer.
+    private struct MotorBilde {
+        var regler: GameRules
+        var poeng: [Int]
+        // Rundens hendelser, i motorens egen bokføring: utdelingen …
+        var utdelteHender: [[Card]]
+        var utdeltTalon: [Card]
+        var førsteBudgiver: Int
+        // … og alt som er skjedd siden, i kronologisk rekkefølge.
+        var bud: [PlacedBid]
+        var kastet: [Card]
+        var trumf: Suit?
+        var ønsket: Card?
+        var spilte: [Card]
+        // Fasit: klonen må lande nøyaktig her, ellers forkastes den.
+        var fase: GamePhase
+        var aktivSpiller: Int
+        var hender: [[Card]]
+        var stikkPåBordet: [TrickPlay]
+        var stikkNummer: Int
+    }
+
+    /// Delt arbeidsliste for ponder-arbeiderne: neste kandidatindeks, bak
+    /// egen lås. To arbeidere plukker fra samme liste – EV-rekkefølgen
+    /// bevares, og ingen kandidat tenkes på to ganger.
+    private final class PonderTeller {
+        private let lås = NSLock()
+        private var neste = 0
+        func hent(under tak: Int) -> Int? {
+            lås.lock()
+            defer { lås.unlock() }
+            guard neste < tak else { return nil }
+            defer { neste += 1 }
+            return neste
+        }
+    }
+
+    /// Øyeblikksbilde av motoren for kloning. Kalles på spillkøen.
+    private func lagMotorBilde() -> MotorBilde {
+        MotorBilde(regler: engine.rules, poeng: engine.scores,
+                   utdelteHender: engine.utdelteHender, utdeltTalon: engine.utdeltTalon,
+                   førsteBudgiver: engine.førsteBudgiverIRunden,
+                   bud: engine.bids, kastet: engine.kastet,
+                   trumf: engine.trumf, ønsket: engine.ønsketKort,
+                   spilte: engine.spilteKort,
+                   fase: engine.phase, aktivSpiller: engine.aktivSpiller,
+                   hender: engine.hands, stikkPåBordet: engine.currentTrick,
+                   stikkNummer: engine.trickNummer)
+    }
+
+    /// Bygger en klon av motoren ved å spille bildets hendelser av på en
+    /// fersk `GameEngine` – samme mekanisme som `Rundeopptak.spillAv`, men
+    /// for en runde som ennå pågår. Motoren selv røres ikke. Returnerer nil
+    /// hvis avspillingen avvises eller klonen ikke treffer fasit (samme
+    /// fase, aktive spiller, hender og pågående stikk som originalen).
+    private static func klonMotor(fra bilde: MotorBilde) -> GameEngine? {
+        let klon = GameEngine(rules: bilde.regler)
+        // Poengstillingen påvirker matchbevisst AI-vurdering (desperasjon/
+        // trygghet). Underveis i en runde er `scores` fortsatt stillingen
+        // fra rundestart, så den kan settes direkte.
+        if bilde.poeng.allSatisfy({ $0 < bilde.regler.målPoeng }) {
+            klon.settPoengstilling(bilde.poeng)
+        }
+        klon.startRunde(hender: bilde.utdelteHender, talon: bilde.utdeltTalon,
+                        førsteBudgiver: bilde.førsteBudgiver)
+        for bud in bilde.bud {
+            guard klon.giBud(seat: bud.seat, action: bud.action) else { return nil }
+        }
+        if !bilde.kastet.isEmpty {
+            guard let budgiver = klon.budgiverSeat,
+                  klon.kastByttekort(bilde.kastet, seat: budgiver) else { return nil }
+        }
+        if let trumf = bilde.trumf {
+            guard klon.velgTrumf(suit: trumf, ønsket: bilde.ønsket) else { return nil }
+        }
+        // Spilte kort i kronologisk rekkefølge; motoren fører selv hvem som
+        // er i tur, så seterekkefølgen følger av seg selv.
+        for kort in bilde.spilte {
+            guard klon.spill(kort: kort, seat: klon.aktivSpiller) else { return nil }
+        }
+        guard klon.phase == bilde.fase,
+              klon.aktivSpiller == bilde.aktivSpiller,
+              klon.hands == bilde.hender,
+              klon.currentTrick == bilde.stikkPåBordet else { return nil }
+        return klon
+    }
+
+    /// Starter spekulativ tenking for menneskets gjeldende kortvalg. Kalles
+    /// på spillkøen etter at trenerforslaget er beregnet, slik at
+    /// kandidatlisten kan gjenbruke trenerens sekvensreduksjon
+    /// (`Spillregler.reduserteTrekk` via `velgKortMedRangering`) og
+    /// EV-rekkefølge. Likeverdige kort deler linje via representanten sin.
+    private func planleggPonder() {
+        guard engine.phase == .spill, seteITur == 0, let nøkkel = beslutningsnøkkel else { return }
+        ponderLås.lock()
+        let alleredeIGang = ponderNøkkel == nøkkel
+        ponderLås.unlock()
+        guard !alleredeIGang else { return }
+
+        var kandidater: [Card] = []
+        ponderRepresentant = [:]
+        if gjeldendeForslag?.nøkkel == nøkkel, let rangering = gjeldendeForslag?.js.rangering {
+            for kandidat in rangering {
+                guard let kort = Self.kort(fraId: kandidat.kort.id) else { continue }
+                kandidater.append(kort)
+                for id in kandidat.likeverdige {
+                    if let lik = Self.kort(fraId: id) { ponderRepresentant[lik] = kort }
+                }
+                ponderRepresentant[kort] = kort
+            }
+        }
+        if kandidater.isEmpty {
+            // Treneren ga ingen rangering (f.eks. bare ett lovlig kort):
+            // fall tilbake til de lovlige kortene som egne kandidater.
+            kandidater = engine.lovligeKort(for: 0)
+            for kort in kandidater { ponderRepresentant[kort] = kort }
+        }
+        guard !kandidater.isEmpty else { return }
+        let bilde = lagMotorBilde()
+
+        ponderLås.lock()
+        ponderEpoke += 1
+        let epoke = ponderEpoke
+        ponderNøkkel = nøkkel
+        ponderLinjer = [:]
+        ponderLås.unlock()
+
+        let teller = PonderTeller()
+        let kandidatliste = kandidater   // uforanderlig kopi til arbeiderne
+        for _ in 0..<min(2, kandidatliste.count) {
+            ponderKø.async { [weak self] in
+                self?.ponderArbeider(kandidater: kandidatliste, teller: teller,
+                                     bilde: bilde, epoke: epoke)
+            }
+        }
+    }
+
+    /// Én ponder-arbeider: plukker neste kandidat fra den delte listen,
+    /// spiller den på en klon og lar ferske MesterAI-er (med romslig
+    /// tidsbudsjett) svare til stikket er ferdig eller det igjen er
+    /// menneskets tur – maks 3 AI-trekk. Kjører på lavprioritetskøen og
+    /// rører aldri spillkøens tilstand; er epoken passert ved et
+    /// sjekkpunkt, forkastes arbeidet stille.
+    private func ponderArbeider(kandidater: [Card], teller: PonderTeller,
+                                bilde: MotorBilde, epoke: Int) {
+        var konfig = Kampsimulator.mesterKonfig(tidsbudsjett: Self.ponderTid)
+        konfig.maksVerdener = 120   // som i byggParti: grundig tenking
+        while let i = teller.hent(under: kandidater.count) {
+            guard ponderAktuell(epoke) else { return }
+            let kandidat = kandidater[i]
+            guard let klon = Self.klonMotor(fra: bilde),
+                  klon.spill(kort: kandidat, seat: 0) else { continue }
+            var linje: [PonderTrekk] = []
+            // Alltid neste AI-svar (også når kandidaten fullførte stikket og
+            // en AI leder neste); deretter kun videre svar i samme stikk.
+            while linje.count < 3, klon.phase == .spill, klon.aktivSpiller != 0,
+                  linje.isEmpty || klon.trickNummer == bilde.stikkNummer {
+                guard ponderAktuell(epoke) else { return }
+                let sete = klon.aktivSpiller
+                let lovlige = klon.lovligeKort(for: sete)
+                guard !lovlige.isEmpty else { break }
+                let mester = MesterAI(sete: sete, konfig: konfig,
+                                      seed: ponderSeed(kandidat: kandidat, sete: sete))
+                var valg = mester.velgKort(engine: klon) ?? lovlige[0]
+                if !lovlige.contains(valg) { valg = lovlige[0] }
+                guard klon.spill(kort: valg, seat: sete) else { break }
+                linje.append(PonderTrekk(sete: sete, kort: valg))
+                // Lagre linjen etter hvert trekk, ikke først når den er
+                // ferdig: spiller mennesket før hele linjen er tenkt, gir
+                // de ferdige første svarene øyeblikkelig gevinst likevel
+                // (resten beregnes direkte som vanlig).
+                ponderLås.lock()
+                let fortsattAktuell = ponderEpoke == epoke
+                if fortsattAktuell { ponderLinjer[kandidat] = linje }
+                ponderLås.unlock()
+                guard fortsattAktuell else { return }
+            }
+        }
+    }
+
+    /// Gjelder epoken fortsatt? Løpende beregninger sjekker mellom hvert
+    /// tunge steg og dør stille når spillkøen har invalidert dem.
+    private func ponderAktuell(_ epoke: Int) -> Bool {
+        ponderLås.lock()
+        defer { ponderLås.unlock() }
+        return ponderEpoke == epoke
+    }
+
+    /// Deterministisk arbeiderseed når partiet er seedet (ellers useedet,
+    /// som resten av web-spillet uten --seed).
+    private func ponderSeed(kandidat: Card, sete: Int) -> UInt64? {
+        oppsett.seed.map { seed in
+            kandidat.id.unicodeScalars.reduce(seed &+ UInt64(sete) &* 7919) {
+                $0 &* 31 &+ UInt64($1.value)
+            }
+        }
+    }
+
+    /// Menneskets kort er spilt: flytt en eventuell ferdig linje for kortet
+    /// (eller dets sekvensrepresentant – likeverdige kort deler linje) over
+    /// i ventelisten som `kjørEttAITrekk` spiller fra, og invalider alt
+    /// annet ponder-arbeid siden tilstanden nettopp endret seg. Kalles på
+    /// spillkøen.
+    private func hentPonderLinje(for kort: Card, nøkkel: String?) {
+        let representant = ponderRepresentant[kort] ?? kort
+        ponderLås.lock()
+        let linje = (nøkkel != nil && ponderNøkkel == nøkkel) ? ponderLinjer[representant] : nil
+        ponderEpoke += 1
+        ponderNøkkel = nil
+        ponderLinjer = [:]
+        ponderLås.unlock()
+        ponderRepresentant = [:]
+        ventendeLinje = linje ?? []
+    }
+
+    /// Neste trekk fra linjen under utførelse – kun hvis setet stemmer og
+    /// kortet er lovlig i den ekte motoren akkurat nå. Ved minste avvik
+    /// forkastes resten av linjen, og vanlig beregning tar over.
+    private func nesteVentendeTrekk(sete: Int, lovlige: [Card]) -> Card? {
+        guard let neste = ventendeLinje.first else { return nil }
+        guard neste.sete == sete, lovlige.contains(neste.kort) else {
+            ventendeLinje = []
+            return nil
+        }
+        ventendeLinje.removeFirst()
+        return neste.kort
+    }
+
+    /// Forkaster alt ponder-arbeid: mellomlageret tømmes, og løpende
+    /// beregninger ser epokebumpen ved neste sjekkpunkt. Kalles på
+    /// spillkøen ved enhver tilstandsendring som ikke er menneskets
+    /// kortvalg (bud, vrak, trumf, ny runde, nytt parti).
+    private func invaliderPonder() {
+        ponderLås.lock()
+        ponderEpoke += 1
+        ponderNøkkel = nil
+        ponderLinjer = [:]
+        ponderLås.unlock()
+        ponderRepresentant = [:]
+        ventendeLinje = []
+    }
+
     // MARK: - Spilloggen (~/spillogger, én JSONL-fil per parti)
 
     /// Åpner en ny loggfil for et nytt parti; et uferdig parti merkes
@@ -738,10 +1049,11 @@ final class WebSpilltjener {
                                talon: engine.utdeltTalon.map(\.id)))
     }
 
-    private func loggTrekk(fase: String, sete: Int, lovlige: [String], valgt: String) {
+    private func loggTrekk(fase: String, sete: Int, lovlige: [String], valgt: String,
+                           ponder: Bool? = nil) {
         skrivLogg(LoggTrekk(runde: rundeNr, fase: fase, sete: sete,
                             lovlige: lovlige, valgt: valgt,
-                            forslag: nil, rangering: nil, fulgt: nil))
+                            forslag: nil, rangering: nil, fulgt: nil, ponder: ponder))
     }
 
     private func loggMenneskeTrekk(fase: String, lovlige: [String], valgt: String,
@@ -749,7 +1061,7 @@ final class WebSpilltjener {
         skrivLogg(LoggTrekk(runde: rundeNr, fase: fase, sete: 0,
                             lovlige: lovlige, valgt: valgt,
                             forslag: forslag?.tekst, rangering: forslag?.js.rangering,
-                            fulgt: fulgt))
+                            fulgt: fulgt, ponder: nil))
         trenerStats.totalt += 1
         if fulgt {
             trenerStats.fulgt += 1
@@ -1093,6 +1405,8 @@ private struct LoggTrekk: Codable {
     var forslag: String?             // kun menneskets trekk
     var rangering: [ForslagKortJS]?  // kun menneskets kortvalg
     var fulgt: Bool?
+    var ponder: Bool?                // kun AI-kortvalg: true = ferdig tenkt
+                                     // fra ponderen, false = beregnet direkte
 }
 
 private struct LoggRundeSlutt: Codable {
