@@ -30,9 +30,18 @@ Kommandoer:
 
   web        Spill i nettleseren! Starter en lokal web-GUI: du i sete 0
              mot tre President-AI-er. Binder kun til 127.0.0.1.
+             Trener-modus (på som standard, bryter i GUI-et) viser MesterAIs
+             anbefaling for hvert av dine valg – med EV-rangering ved
+             kortvalg. Hvert parti logges etterprøvbart til ~/spillogger/
+             (JSONL med Rundeopptak per runde; GET /logg lister dem).
              --port N       port (standard 8787)
              --navn X       navnet ditt (standard Arvind)
-             --seed N, --mål N, --tid SEK  som over
+             --seed N, --mål N, --tid SEK  som over (standard tid her: 0.6)
+
+  verifiser  Etterprøver en spillogg fra web-kommandoen: hver runde
+             («rundeopptak»-linjene) spilles av gjennom motoren, som
+             håndhever reglene trekk for trekk og sammenlikner resultatet.
+             Bruk: Amerikaneren verifiser ~/spillogger/<fil>.jsonl
 
   companion  Poengblokken for fysiske kort, i terminalen.
              --demo         kjør et scriptet eksempelparti (ikke interaktivt)
@@ -148,6 +157,8 @@ case "spill":
     SpillKommando.kjør(argv: argv, innstillinger: lesInnstillinger(argv))
 case "web":
     WebSpill.kjør(argv: argv)
+case "verifiser":
+    VerifiserLogg.kjør(argv: argv)
 case "companion":
     CompanionKommando.kjør(demo: argv.contains("--demo"))
 case "evolusjon":
