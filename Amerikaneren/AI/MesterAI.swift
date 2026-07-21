@@ -28,6 +28,9 @@ struct MesterKonfig {
     /// varians en venn (våg mer); leder man, er trygghet verdt mer enn
     /// marginale bud. Virker i begge partiformater.
     var matchbevisst = true
+    /// Heuristikkvektene (håndvurdering, budvekting, EV-forming). Standard
+    /// er de håndsatte verdiene; evolusjonssøket injiserer kandidater her.
+    var vekter = MesterVekter()
 
     /// Skalerer søket etter maskinvaren: flere kjerner gir flere verdener og
     /// dypere eksakt sluttspill innenfor samme tidsbudsjett.
@@ -83,7 +86,8 @@ final class MesterAI {
             return nil
         }.min()
 
-        let (heuristiskFarge, estimat) = AIPlayer.besteTrumf(hånd: hånd)
+        let v = konfig.vekter
+        let (heuristiskFarge, estimat) = AIPlayer.besteTrumf(hånd: hånd, vekter: v)
         let alleStikk = regler.maksBud
 
         // Matchbevissthet: «senhet» er hvor nær partiet er slutten (nærhet
@@ -102,15 +106,15 @@ final class MesterAI {
             } else {
                 senhet = min(1, max(minPoeng, besteAndre) / mål)
             }
-            desperasjon = min(1, max(0, (besteAndre - minPoeng) / mål * 2)) * senhet
-            trygghet = min(1, max(0, (minPoeng - besteAndre) / mål * 2)) * senhet
+            desperasjon = min(1, max(0, (besteAndre - minPoeng) / mål * v.desperasjonSkala)) * senhet
+            trygghet = min(1, max(0, (minPoeng - besteAndre) / mål * v.desperasjonSkala)) * senhet
         }
 
         // Solo-amerikaner simuleres bare når hånden er i nærheten av å bære
         // alle stikkene alene – desperasjon senker terskelen litt.
         let vurderSolo = lovlige.contains(.soloAmerikaner)
-            && estimat + Double(regler.antallByttekort) * 0.4
-                >= Double(alleStikk) - 2.5 - desperasjon * 1.5
+            && estimat + Double(regler.antallByttekort) * v.byttekortEstimat
+                >= Double(alleStikk) - v.soloTerskelSlingring - desperasjon * v.soloDesperasjonLette
 
         var deklStikk: [(stikk: Int, vekt: Double)] = []
         var passVerdier: [(verdi: Double, vekt: Double)] = []
@@ -154,7 +158,7 @@ final class MesterAI {
         let deklVekt = max(1e-9, deklStikk.reduce(0) { $0 + $1.vekt })
         let passVekt = max(1e-9, passVerdier.reduce(0) { $0 + $1.vekt })
         let evPass = passVerdier.reduce(0) { $0 + $1.verdi * $1.vekt } / passVekt
-            + trygghet * 1.5
+            + trygghet * v.passTrygghet
         var besteAction = BidAction.pass
         var besteEV = evPass
 
@@ -162,7 +166,7 @@ final class MesterAI {
             let p = deklStikk.filter { $0.stikk >= b }.reduce(0) { $0 + $1.vekt } / deklVekt
             // Budvinneren vinner/taper det dobbelte av budet.
             let ev = Double(2 * b) * (2 * p - 1)
-                + desperasjon * Double(b) * 0.6 - trygghet * Double(b) * 0.4
+                + desperasjon * Double(b) * v.budDesperasjon - trygghet * Double(b) * v.budTrygghet
             if ev > besteEV {
                 besteAction = .bud(b)
                 besteEV = ev
@@ -172,7 +176,7 @@ final class MesterAI {
             // Amerikaner: laget må ta alle stikkene; budvinner ±målPoeng/2.
             let p = deklStikk.filter { $0.stikk >= alleStikk }.reduce(0) { $0 + $1.vekt } / deklVekt
             let ev = Double(regler.målPoeng / 2) * (2 * p - 1)
-                + desperasjon * Double(regler.målPoeng) * 0.10
+                + desperasjon * Double(regler.målPoeng) * v.amerikanerDesperasjon
             if ev > besteEV {
                 besteAction = .amerikaner
                 besteEV = ev
@@ -181,7 +185,7 @@ final class MesterAI {
         if vurderSolo, soloTalt > 0 {
             let p = soloKlart / soloTalt
             let ev = Double(regler.målPoeng) * (2 * p - 1)
-                + desperasjon * Double(regler.målPoeng) * 0.15
+                + desperasjon * Double(regler.målPoeng) * v.soloDesperasjon
             if ev > besteEV {
                 besteAction = .soloAmerikaner
                 besteEV = ev
@@ -208,7 +212,7 @@ final class MesterAI {
 
         // Trumfkandidater: de to beste fargene på den store hånden.
         let rangerte = Kortmaske.farger
-            .map { suit in (Kortmaske.fargeIndeks(suit), AIPlayer.estimerStikk(hånd: engine.hands[sete], trumf: suit)) }
+            .map { suit in (Kortmaske.fargeIndeks(suit), AIPlayer.estimerStikk(hånd: engine.hands[sete], trumf: suit, vekter: konfig.vekter)) }
             .sorted { $0.1 > $1.1 }
         let trumfKandidater = rangerte.prefix(2).map(\.0)
 
@@ -494,10 +498,11 @@ final class MesterAI {
         // Egen poengendring minus motstandernes, vektet mot stillingen:
         // en motstander nær målstreken er farligere å fôre enn en på bunn.
         let meg = innsikt.sete
+        let v = konfig.vekter
         var verdi = delta[meg]
         for s in 0..<4 where s != meg {
             let nærhet = Double(min(innsikt.poengNå[s], innsikt.målPoeng)) / Double(innsikt.målPoeng)
-            verdi -= (1.0 + nærhet) / 3.0 * delta[s]
+            verdi -= (v.motstanderBasis + nærhet) / v.motstanderNevner * delta[s]
         }
 
         // Å vinne eller tape hele partiet trumfer rundepoengene.
@@ -520,20 +525,21 @@ final class MesterAI {
     private func budVekt(profiler: [BudProfil], hender: SIMD4<UInt64>,
                          spiltAv: [UInt64]?, stikkTotalt: Int) -> Double {
         guard konfig.budvekting else { return 1 }
+        let v = konfig.vekter
         var vekt = 1.0
         for s in 0..<4 where s != sete {
             let profil = profiler[s]
             guard profil.harSignal else { continue }
             let full = hender[s] | (spiltAv?[s] ?? 0)
             guard full != 0 else { continue }
-            let est = AIPlayer.besteTrumf(hånd: Kortmaske.kortliste(full)).estimat
+            let est = AIPlayer.besteTrumf(hånd: Kortmaske.kortliste(full), vekter: v).estimat
             if profil.meldteAlle {
-                vekt *= exp(-0.5 * max(0, Double(stikkTotalt) - 2.0 - est))
+                vekt *= exp(-v.alleEksp * max(0, Double(stikkTotalt) - v.alleSlingring - est))
             } else if let n = profil.tallbud {
-                vekt *= exp(-0.6 * max(0, Double(n) - (est + 2.5)))
+                vekt *= exp(-v.tallEksp * max(0, Double(n) - (est + v.tallSlingring)))
             }
             if let gulv = profil.passetVedGulv {
-                vekt *= exp(-0.4 * max(0, est + 2.0 - Double(gulv) - 1.5))
+                vekt *= exp(-v.passEksp * max(0, est + v.passMakkerTillegg - Double(gulv) - v.passSlingring))
             }
         }
         return max(vekt, 0.02)
@@ -636,7 +642,7 @@ final class MesterAI {
         var besteEstimat = -1.0
         var besteFarge = Suit.spar
         for s in 0..<4 where s != sete {
-            let (farge, estimat) = AIPlayer.besteTrumf(hånd: Kortmaske.kortliste(hender[s]))
+            let (farge, estimat) = AIPlayer.besteTrumf(hånd: Kortmaske.kortliste(hender[s]), vekter: konfig.vekter)
             if estimat > besteEstimat {
                 besteSete = s
                 besteEstimat = estimat

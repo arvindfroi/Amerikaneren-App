@@ -134,6 +134,16 @@ final class GameEngine {
                    førsteBudgiver: (dealer + 1) % n)
     }
 
+    /// Setter poengstillingen direkte – for trening/simulering som skal
+    /// dekke hele spekteret av partisituasjoner (desperasjon, trygghet,
+    /// målstrek) uten å spille seg dit. Kun mellom runder.
+    func settPoengstilling(_ poeng: [Int]) {
+        precondition(phase == .venterPåStart || phase == .rundeFerdig)
+        precondition(poeng.count == rules.antallSpillere)
+        precondition(poeng.allSatisfy { $0 < rules.målPoeng })
+        scores = poeng
+    }
+
     /// Starter en runde med en forhåndsbestemt utdeling – brukes av tester
     /// og av avspilling av opptak (`Rundeopptak.spillAv`).
     func startRunde(hender: [[Card]], talon nyTalon: [Card], førsteBudgiver: Int) {
