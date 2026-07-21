@@ -28,12 +28,19 @@ Kommandoer:
              --navn X,Y     navn på menneskene i seterekkefølge
              --seed N, --runder N, --mål N, --tid SEK  som over
 
+  web        Spill i nettleseren! Starter en lokal web-GUI: du i sete 0
+             mot tre President-AI-er. Binder kun til 127.0.0.1.
+             --port N       port (standard 8787)
+             --navn X       navnet ditt (standard Arvind)
+             --seed N, --mål N, --tid SEK  som over
+
   companion  Poengblokken for fysiske kort, i terminalen.
              --demo         kjør et scriptet eksempelparti (ikke interaktivt)
 
   hjelp      Denne teksten.
 
 Eksempler:
+  swift run -c release Amerikaneren web --port 8787
   swift run -c release Amerikaneren spill --navn Arvind,Kari
   swift run -c release Amerikaneren demo --seed 42 --runder 6 --tid 0.05
   swift run -c release Amerikaneren arena --partier 10 --mot middels
@@ -129,6 +136,8 @@ case "arena":
     kjørArena(argv)
 case "spill":
     SpillKommando.kjør(argv: argv, innstillinger: lesInnstillinger(argv))
+case "web":
+    WebSpill.kjør(argv: argv)
 case "companion":
     CompanionKommando.kjør(demo: argv.contains("--demo"))
 case nil, "hjelp", "--help", "-h":
