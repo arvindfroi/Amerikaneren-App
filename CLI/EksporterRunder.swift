@@ -77,13 +77,21 @@ enum EksporterRunder {
             case .budrunde:
                 let sete = engine.aktivBudgiver
                 let lovlige = engine.lovligeBud(for: sete).map(budId).sorted()
-                // Vekt mot pass slik at budrunden ender i rimelig tid, men
-                // alle handlinger (også amerikaner/solo) prøves jevnlig.
+                // Vekt mot pass slik at budrunden ender i rimelig tid.
+                // Amerikaner/solo dempes (solo avslutter budrunden med en
+                // gang), slik at tallbud og budkriger dekkes godt.
                 let valg: Int
-                if Int.random(in: 0..<100, using: &rng) < 55 || lovlige.count == 1 {
+                let r = Int.random(in: 0..<100, using: &rng)
+                if r < 55 || lovlige.count == 1 {
                     valg = 52
                 } else {
-                    valg = lovlige.filter { $0 != 52 }.randomElement(using: &rng)!
+                    let meldinger = lovlige.filter { $0 >= 61 }
+                    let tallbud = lovlige.filter { $0 != 52 && $0 < 61 }
+                    if r < 60 || tallbud.isEmpty {
+                        valg = meldinger.randomElement(using: &rng) ?? tallbud.randomElement(using: &rng)!
+                    } else {
+                        valg = tallbud.randomElement(using: &rng)!
+                    }
                 }
                 let antallBudFør = engine.bids.count
                 guard engine.giBud(seat: sete, action: budFraId(valg)) else { return nil }
