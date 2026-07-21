@@ -131,6 +131,10 @@ case "spill":
     SpillKommando.kjør(argv: argv, innstillinger: lesInnstillinger(argv))
 case "companion":
     CompanionKommando.kjør(demo: argv.contains("--demo"))
+case "eksporter-runder":
+    // Paritetseksport for OpenSpiel-porten: N runder med tilfeldige lovlige
+    // trekk som JSONL på stdout.  Bruk: eksporter-runder <antall> <frø>
+    EksporterRunder.kjør(argv: argv)
 case nil, "hjelp", "--help", "-h":
     print(hjelpetekst)
 default:
