@@ -3,14 +3,14 @@
 // testkonfig og en baselinekonfig. Modus styrer hva som varieres.
 // bygg: g++ -O2 -std=c++17 harness.cpp -o harness && ./harness [runder] [verdener] [eksaktFra] [modus]
 //   modus: pimc (PIMC-spill vs heuristikk) | weighted (vekting vs uniform) | bidsim (fri budgivning vs heuristikk)
-#include "player.hpp"
+#include "ismcts.hpp"
 #include <cstdio>
 #include <cmath>
 #include <string>
 #include <random>
 using namespace wa;
 
-struct Cfg { PlayPolicy pol[4]; bool bidSim[4]; int nWorlds, exactFrom, nBidWorlds; };
+struct Cfg { PlayPolicy pol[4]; bool bidSim[4]; bool ismcts[4]; int nWorlds, exactFrom, nBidWorlds, iters; };
 
 static std::array<int,4> playRound(u64 dealSeed, int dealer, const Cfg& cfg, u64 playSeed){
     Round R(dealSeed); R.dealer=dealer;
@@ -25,8 +25,11 @@ static std::array<int,4> playRound(u64 dealSeed, int dealer, const Cfg& cfg, u64
     }
     R.applyDiscard(chooseDiscard(R));
     auto ta=chooseTrumpAsk(R); R.applyTrump(ta.first, ta.second);
+    ISMCTS ism;
     while(R.phase==P_PLAY){ int s=R.active();
-        R.applyPlay(s, choosePlay(R,s,cfg.pol[s],cfg.nWorlds,cfg.exactFrom,prng)); }
+        int card = cfg.ismcts[s] ? ism.velg(R,s,cfg.iters,cfg.exactFrom,prng)
+                                 : choosePlay(R,s,cfg.pol[s],cfg.nWorlds,cfg.exactFrom,prng);
+        R.applyPlay(s, card); }
     return R.scoreDelta;
 }
 
@@ -37,11 +40,14 @@ int main(int argc, char** argv){
     std::string mode = argc>4? argv[4] : "pimc";
     int nBid = argc>5? atoi(argv[5]) : 24;
 
-    // Per modus: (bidSim,play) for TEST-setet, for BASE-setet, og for bordet.
-    bool tBid=false,bBid=false,tblBid=false; PlayPolicy tPol,bPol,tblPol;
+    // Per modus: (bidSim,ismcts,play) for TEST-setet, BASE-setet, og bordet.
+    bool tBid=false,bBid=false,tblBid=false, tIsm=false,bIsm=false,tblIsm=false;
+    PlayPolicy tPol,bPol,tblPol;
     if(mode=="weighted"){ tPol=PIMC_WEIGHTED; bPol=PIMC_UNIFORM; tblPol=PIMC_UNIFORM; }
     else if(mode=="bidsim"){ tBid=true; bBid=false; tPol=bPol=PIMC_UNIFORM; tblPol=HEUR; }
+    else if(mode=="ismcts"){ tIsm=true; tPol=bPol=tblPol=PIMC_UNIFORM; } // ISMCTS vs PIMC (bord PIMC)
     else { tPol=PIMC_UNIFORM; bPol=HEUR; tblPol=HEUR; }
+    int iters = nBid; // for ismcts-modus: antall MCTS-iterasjoner (argv[5])
 
     printf("Modus=%s  runder=%d verdener=%d eksaktFra=%d budverdener=%d\n", mode.c_str(),rounds,nWorlds,exactFrom,nBid);
 
@@ -52,10 +58,12 @@ int main(int argc, char** argv){
         for(int seat=0;seat<4;seat++){
             u64 pseed=dealSeed ^ (0x9E3779B97F4A7C15ull*(seat+1));
             Cfg ct,cb;
-            for(int s=0;s<4;s++){ ct.pol[s]=tblPol; ct.bidSim[s]=tblBid; cb.pol[s]=tblPol; cb.bidSim[s]=tblBid; }
-            ct.pol[seat]=tPol; ct.bidSim[seat]=tBid;
-            cb.pol[seat]=bPol; cb.bidSim[seat]=bBid;
-            ct.nWorlds=cb.nWorlds=nWorlds; ct.exactFrom=cb.exactFrom=exactFrom; ct.nBidWorlds=cb.nBidWorlds=nBid;
+            for(int s=0;s<4;s++){ ct.pol[s]=tblPol; ct.bidSim[s]=tblBid; ct.ismcts[s]=tblIsm;
+                                  cb.pol[s]=tblPol; cb.bidSim[s]=tblBid; cb.ismcts[s]=tblIsm; }
+            ct.pol[seat]=tPol; ct.bidSim[seat]=tBid; ct.ismcts[seat]=tIsm;
+            cb.pol[seat]=bPol; cb.bidSim[seat]=bBid; cb.ismcts[seat]=bIsm;
+            ct.nWorlds=cb.nWorlds=nWorlds; ct.exactFrom=cb.exactFrom=exactFrom;
+            ct.nBidWorlds=cb.nBidWorlds=nBid; ct.iters=cb.iters=iters;
             int dt=playRound(dealSeed,dealer,ct,pseed)[seat];
             int db=playRound(dealSeed,dealer,cb,pseed)[seat];
             double diff=dt-db; sum+=diff; sum2+=diff*diff; n++; sT+=dt; sB+=db;

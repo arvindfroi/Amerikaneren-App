@@ -11,6 +11,7 @@ dobbeltdummy 920/920 mot brute-force).
 | **Simulert budgivning vs heuristisk bud** | **+1,07 ± 0,42** | 2000 | ✅ signifikant – største enkeltkilde til poeng |
 | Angrep A: spillhistorikk-vekting vs uniform | +0,03 ± 0,16 | 1600 | ❌ **blindvei med grov motstandsmodell** (grådig-softmaks); trenger nevralt nett som modell |
 | Angrep B: dypere eksakt (eksaktFra 7) | −0,08 ± 0,25 | 400 | ❌ ingen gevinst, og ~5 s/runde (for tregt) |
+| Angrep C: ISMCTS (kontrakt-bevisst) vs PIMC | −0,50 ± 0,77 | 240 | ❌ slår ikke PIMC (bridge/spades-lever, men PIMC er sterk her) |
 
 Absolutt (simulert bud + PIMC-spill mot heuristisk bord): ~6,5 poeng/runde.
 
@@ -30,6 +31,22 @@ Absolutt (simulert bud + PIMC-spill mot heuristisk bord): ~6,5 poeng/runde.
 - **(b) Tren et lite policynett i C++** for vekting, og hold hele sløyfen lokal.
 
 Dypere eksakt og heuristisk vekting er **empirisk utelukket** – ikke mer tid der.
+
+## Om ISMCTS (bridge/spades-leveren)
+ISMCTS (Cowling et al.) er den anerkjente fiksen for PIMCs strategy fusion, og
+den naturlige neste kandidaten. Men den slår ikke PIMC her (−0,50). Det er
+konsistent med forskning (Long, Sturtevant et al. 2010, «Understanding the
+Success of PIMC»): i stikkspill med kort horisont og høy «disambiguation» er
+PIMC uvanlig sterk, og ISMCTS gir ofte lite eller negativt. MesterAI ligger
+altså nær taket for denne spillklassen.
+
+## Ærlig delkonklusjon
+Etter å ha målt bud (paritet – MesterAI har det alt), dypere eksakt (0), grov
+vekting (0) og ISMCTS (−0,5): **ingen prøvd lever slår MesterAI.** Den er en
+velbygd, nær-optimal PIMC+nett-bot. Gjenstående realistiske håp, i synkende
+sannsynlighet: (1) nett-*guidet* søk (AlphaZero-stil prior/verdi – stor jobb,
+krever nettet), (2) mer ISMCTS-tuning, (3) konvensjonssignaler. Ingen er
+garantert.
 
 ## Referanse
 MesterAI: 7,96 p/runde mot Vanskelig. Head-to-head når idéene er portert til
