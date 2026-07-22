@@ -62,6 +62,39 @@ Poeng per runde, parret blokkdesign, MesterAI-budsjett 0,05 s:
 Merk at MesterAI ved 0,05 s er kraftig nedskalert (maksVerdener 12); appen
 kjører 0,45 s. Tallene er altså ikke et mål på appens MesterAI.
 
+## Forsøket på å slå MesterAI (22. juli 2026) — mislyktes, med tall
+
+Etter at NFSP nådde +0,22 poeng/runde ble alle rimelige kombinasjoner testet.
+160 runder per oppsett, MesterAI-budsjett 0,2 s, grådig NFSP, alle sett kjørt
+samtidig så tidsbudsjettet møtte samme maskinlast. «Differanse» er den
+**parede** blokkdifferansen part − MesterAI (marginalene er korrelerte).
+
+| Oppsett | Differanse |
+|---|---|
+| NFSP i alle faser | −5,03 ± 0,55 |
+| NFSP kun i budrunden | −2,39 ± 0,61 |
+| NFSP kun i vrak + trumfvalg | −3,94 ± 0,66 |
+| NFSP kun i kortspillet | −4,52 ± 0,66 |
+| Ren MesterAI (nullreferanse) | +0,73 ± 0,55 |
+
+**Ingen fase er en NFSP-styrke**, og tapene er omtrent additive. Hybridene
+(nettet som prior for topp-k, eller som overstyring når det er svært sikkert)
+lå alle på nullreferansen. Avgjørende måling på friskt frø, 320 runder:
++1,21 SE — under kravet på 2 SE. Kontrollen avgjorde saken: en *tilfeldig*
+topp-3-rangering målte likt med nettets rangering, så nettet tilfører ingen
+informasjon MesterAI ikke alt har.
+
+Mekanistisk forklaring: MesterAI reduserer allerede likeverdige trekk, så i
+70 % av kortvalgene finnes ≤ 5 kandidater. En prior kan da ikke kjøpe
+søkedybde, og strammere beskjæring (`prior:2`) skader.
+
+**Konklusjonen er arkitektonisk, ikke et treningsproblem.** Et rent
+policy-nett gjenkjenner mønstre; MesterAI sampler tusenvis av verdener og
+løser sluttspillet eksakt. Mer NFSP-trening lukker ikke den forskjellen.
+Skal nettet bidra, må det inn *i* søket (utrullingspolicy eller
+verdifunksjon), ikke ved siden av det – og da må det destilleres til noe
+som er raskt nok til å kalles millioner av ganger.
+
 ## Fallgruver som kostet tid (les før du gjentar dette)
 
 1. **Epsilon-skjemaet telles i DQN-iterasjoner, ikke miljøsteg.** `DQN.step`
