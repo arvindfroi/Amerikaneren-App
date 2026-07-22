@@ -102,6 +102,7 @@ final class Dobbeltdummy {
     private struct Nøkkel: Hashable {
         let hender: SIMD4<UInt64>
         let leder: Int8
+        let lag: UInt8       // budgiverlaget – MÅ med for deling på tvers av verdener (makkeren varierer)
     }
     private struct Grense {
         var nedre: Int8
@@ -113,6 +114,10 @@ final class Dobbeltdummy {
     init() {
         tabell.reserveCapacity(1 << 14)
     }
+
+    /// Tømmer transposisjonstabellen. Kalles ved rundestart (ny trumf gjør
+    /// gamle verdier ugyldige), så TT-en trygt kan bæres gjennom hele runden.
+    func tøm() { tabell.removeAll(keepingCapacity: true) }
 
     /// Relativ-rang-kanonisering: bare kortenes innbyrdes rekkefølge i hver
     /// farge betyr noe for verdien, så mange absolutte stillinger deler samme
@@ -158,7 +163,7 @@ final class Dobbeltdummy {
             maks = t.hender[t.leder].nonzeroBitCount
             if alfa >= maks { return maks }
             if beta <= 0 { return 0 }
-            let k = Nøkkel(hender: Dobbeltdummy.kanonisk(t.hender), leder: Int8(t.leder))
+            let k = Nøkkel(hender: Dobbeltdummy.kanonisk(t.hender), leder: Int8(t.leder), lag: t.lagMaske)
             nøkkel = k
             if let g = tabell[k] {
                 if Int(g.nedre) >= beta { return Int(g.nedre) }

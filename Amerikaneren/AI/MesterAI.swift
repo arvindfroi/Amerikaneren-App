@@ -59,6 +59,12 @@ final class MesterAI {
     let sete: Int
     var konfig: MesterKonfig
     private var rng: SeededGenerator
+    /// Persistent løser gjennom runden (sjakkens «permanent brain»): TT-en
+    /// gjenbrukes på tvers av samplede verdener og stikk, og tømmes ved
+    /// rundestart. `lagMaske` er i nøkkelen, så deling på tvers av verdener
+    /// (ulik makker) er korrekt.
+    private let løser = Dobbeltdummy()
+    private var sisteTrickNr = -1
 
     /// Overstyring for benchmarks/AB-testing – brukes av AIPlayer om satt.
     static var overstyrKonfig: MesterKonfig?
@@ -393,6 +399,11 @@ final class MesterAI {
         if lovlige.count == 1 { return lovlige[0] }
         guard let innsikt = Spillinnsikt(engine: engine, sete: sete) else { return nil }
 
+        // Ny runde (stikknr gikk tilbake til start) → tøm TT-en, siden ny trumf
+        // gjør gamle verdier ugyldige. Ellers bæres den gjennom hele runden.
+        if innsikt.trickNummer < sisteTrickNr { løser.tøm() }
+        sisteTrickNr = innsikt.trickNummer
+
         // Likeverdige kort (ingen gjenværende kort imellom) prøves bare én gang.
         let pågåendeMaske = innsikt.pågående.reduce(UInt64(0)) { $0 | (1 << UInt64($1.indeks)) }
         let union = innsikt.ukjente | innsikt.minHånd | pågåendeMaske
@@ -408,9 +419,9 @@ final class MesterAI {
             // Verdener som strider mot budhistorikken teller mindre.
             let vekt = budVekt(profiler: innsikt.budProfiler, hender: verden.hender,
                                spiltAv: innsikt.spiltAvSete, stikkTotalt: innsikt.stikkTotalt)
-            let dd = Dobbeltdummy()   // deles på tvers av kandidatene i samme verden
+            // Persistent løser: TT deles på tvers av kandidater, verdener OG stikk.
             for (i, kandidat) in kandidater.enumerated() {
-                sum[i] += vekt * vurder(kandidat: kandidat, verden: verden, innsikt: innsikt, dd: dd)
+                sum[i] += vekt * vurder(kandidat: kandidat, verden: verden, innsikt: innsikt, dd: løser)
             }
             verdener += 1
         }
