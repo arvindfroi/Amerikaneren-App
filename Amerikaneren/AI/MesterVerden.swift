@@ -123,6 +123,10 @@ struct Spillinnsikt {
     let pågående: [(sete: Int, indeks: Int)]
     let budProfiler: [BudProfil]   // hva hvert sete meldte (offentlig)
     let spiltAvSete: [UInt64]      // kort hvert sete har lagt så langt
+    let målPoeng: Int              // styrer Amerikaner-satsene og målstreken
+    let budgiverFaktor: Int        // budvinnerens multiplikator (normalt 2)
+    let poengNå: [Int]             // stillingen i partiet (offentlig)
+    let harMålstrek: Bool          // false i åpne partier med fast rundetall
 
     init?(engine: GameEngine, sete: Int) {
         guard engine.phase == .spill,
@@ -137,6 +141,10 @@ struct Spillinnsikt {
         self.erSolo = engine.erSolo
         self.trumfFarge = engine.trumf.map(Kortmaske.fargeIndeks)
         self.stikkTotalt = engine.rules.kortPerSpiller
+        self.målPoeng = engine.rules.målPoeng
+        self.budgiverFaktor = engine.rules.budgiverFaktor
+        self.poengNå = engine.scores
+        self.harMålstrek = engine.rules.maksRunder == nil
         let minMaske = Kortmaske.maske(engine.hands[sete])
         self.minHånd = minMaske
         self.antallKort = engine.hands.map(\.count)
