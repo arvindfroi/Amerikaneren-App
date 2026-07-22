@@ -176,6 +176,50 @@ brute-force-minimax på 800 tilfeldige stillinger, hele runder
 fuzz-testes for lovlighet, og en egenskapsbasert motorfuzz verifiserer
 alle poengregler uavhengig over tusenvis av tilfeldige runder.
 
+### Utrullingspolicyen er ikke flaskehalsen (negativt resultat)
+
+Fram til dobbeltdummy overtar spilles hver samplede verden ut av en
+policy (`MesterKonfig.utrullingspolicy`), lik for alle fire seter. Siden
+DD-fasit-diagnosen plasserte lekkasjen i stikk 3–6 – nettopp der
+utrullingen dominerer vurderingen – ble policyen byttet symmetrisk og
+målt: sete 0 President mot 3× «Vanskelig», 432 runder per arm, samme
+utdelinger og frø i alle armer, fast verdenstall (tiden binder aldri).
+Parret differanse mot dagens grådige policy, i poeng per runde:
+
+| policy | 36 verdener | 120 verdener |
+| --- | --- | --- |
+| grådig (referanse) | +8,44 ± 0,45 | +8,70 ± 0,44 |
+| halvgrådig p = 0,75 | −0,77 ± 0,47 | – |
+| halvgrådig p = 0,50 | −0,09 ± 0,45 | −0,22 ± 0,40 |
+| halvgrådig p = 0,25 | −0,61 ± 0,47 | – |
+| tilfeldig | −0,04 ± 0,44 | −0,72 ± 0,41 |
+| billig (uten strategidelene) | −0,46 ± 0,49 | −0,23 ± 0,42 |
+
+Ingen arm når 2 SE. Kurven er flat: **uniformt tilfeldig utrulling er
+like god som den håndskrevne heuristikken**, og «billig grådig» – uten
+trumftrekking, sikre-vinner-utspill og oppslag i motstandernes hender –
+er det også. Policybyttet biter (utfallet endrer seg i 34–40 % av
+rundene), så flatheten er et resultat, ikke manglende følsomhet.
+
+Tolkningen: søket er ufølsomt for hvor *sterk* utrullingen er, men
+sårbart for om den er *symmetrisk*. Det stemmer med at to tidligere
+lokale «forbedringer» av utspillspolicyen gjorde MesterAI svakere (−0,99
+± 1,30 og −2,35 ± 1,95): de rørte balansen mellom setene, ikke styrken.
+Aksen er dermed lukket – lekkasjen i stikk 3–6 må søkes et annet sted
+(verdensutvalget, målfunksjonen, sekvensreduksjonen), ikke i policyen.
+
+Standarden er beholdt på `.grådig`. Merk at billigere utrulling ikke gir
+billigere søk: `tilfeldig` er 5,6× raskere per utrulling, men etterlater
+en mer uoppgjort sluttstilling som koster DD-løseren mer, og ble netto
+litt *dyrere* per trekk. `billig` var det eneste alternativet som var
+både like sterkt og billigere (−18 % tid per trekk).
+
+Et nevralt nett som utrullingspolicy (`NevroSpiller`) ble målt til 22 700
+foroverpass/s, dvs. 44 µs per kortlegging mot 0,3 µs for grådig – rundt
+140× dyrere, og det ville i tillegg kreve en egen trekkvektor bygd fra
+bitmaskestillingen (`NevroTrekk.spill` krever en hel `GameEngine`).
+Ikke praktisk, og etter kurven over heller ikke lovende.
+
 ## NevroHjerne – det nevrale nettet
 
 Tre små MLP-er i ren Swift (`AI/NevroNett.swift`, ~100k parametre totalt,
