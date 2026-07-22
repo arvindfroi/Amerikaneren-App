@@ -59,8 +59,26 @@ og der er MesterAI målbart suboptimal.
 
 **Konsekvens:** å fikse åpnings-*stikk* ga ~0 poeng (kontrakt-scoring), MEN
 grådigpolicyen brukes også til å *estimere bud* – så skjevheten rammer trolig
-**budgivningen**, der feil koster ekte poeng (±2n). Neste: par-kontrakt-analyse
-av budgivningen + bedre utrullingspolicy (nett-guidet) som løfter begge.
+**budgivningen**, der feil koster ekte poeng (±2n).
+
+### ✅ FORBEDRING: prinsipielt åpningsutspill (verifisert på ekte bot)
+Grådig-utrullingens default-utspill spilte det globalt *billigste* kortet – et
+passivt lead. Erstattet med **«led lavt fra lengste sidefarge»** (etabler
+lengde). Siden PIMC evaluerer åpningskort via denne utrullingen, løfter det
+botens faktiske åpningsvalg.
+
+Målt på **ekte Swift-MesterAI**, samme frø, før/etter (16 giver, grense 10):
+
+| Kort igjen | FØR | ETTER |
+|---|---|---|
+| 10 | 92,2 % | 95,3 % |
+| **9** (svakest før) | **87,5 %** | **96,9 %** (+9,4 pp) |
+| 8 | 92,2 % | 96,9 % |
+| Snittfeil totalt | 0,045 | **0,030 (−34 %)** |
+
+I C++ (måler helt til 11 kort): **11 kort 88 %→94 %.** Koster ingenting i tid.
+Den tidlige fasen er nå på nivå med sluttspillet. Sesjonens beste konkrete
+gevinst – på den ekte boten, ikke bare C++-kopien.
 
 ## Ærlig delkonklusjon
 Etter å ha målt bud (paritet – MesterAI har det alt), dypere eksakt (0), grov
