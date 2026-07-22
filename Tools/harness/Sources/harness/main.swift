@@ -672,3 +672,84 @@ if kommando == "format" {
     kjørFormat("20 runder, uten        ", maksRunder: 20, matchbevisst: false)
     MesterAI.overstyrKonfig = nil
 }
+
+if kommando == "optimalitet" {
+    // Dobbeltdummy-optimalitet for kortspillet: for hvert kortvalg der ≤ grense
+    // kort gjenstår (raske eksakte løsninger), sammenlign MesterAIs kort med det
+    // dobbeltdummy-optimale. Feil = stikk tapt vs perfekt spill. Øvre grense på
+    // suboptimalitet – skjult info gjør noe gap uunngåelig. Åpningen (12–9 kort)
+    // er for dyr å løse eksakt og måles ikke.
+    let n = UInt64(CommandLine.arguments.count > 2 ? UInt64(CommandLine.arguments[2]) ?? 40 : 40)
+    let grense = CommandLine.arguments.count > 3 ? Int(CommandLine.arguments[3]) ?? 8 : 8
+    var konfig = MesterKonfig()
+    konfig.tidsbudsjett = 0.1; konfig.maksVerdener = 16; konfig.verdenerVedBud = 24
+    MesterAI.overstyrKonfig = konfig
+
+    func byggTilstand(_ e: GameEngine) -> Spilltilstand {
+        var hender = SIMD4<UInt64>(repeating: 0)
+        for s in 0..<4 { hender[s] = Kortmaske.maske(e.hands[s]) }
+        let leder = e.currentTrick.first?.seat ?? e.aktivSpiller
+        let pågående = e.currentTrick.map { (sete: $0.seat, indeks: Kortmaske.indeks($0.card)) }
+        var lag: UInt8 = 1 << UInt8(e.budgiverSeat!)
+        if let m = e.makkerSeat { lag |= 1 << UInt8(m) }
+        let plikt: Int? = (e.trickNummer == 0 && e.ønsketKort != nil && !e.ønsketLagt)
+            ? e.ønsketKort.map(Kortmaske.indeks) : nil
+        return Spilltilstand(hender: hender, leder: leder, pågående: pågående,
+            trumfFarge: e.trumf.map(Kortmaske.fargeIndeks), lagMaske: lag,
+            budgiver: e.budgiverSeat!, pliktkort: plikt, førsteStikk: e.trickNummer == 0)
+    }
+    func verdiEtter(_ t: Spilltilstand, _ indeks: Int) -> Int {
+        var b = t
+        let vinner = Spillregler.utfør(&b, indeks: indeks)
+        let bonus = vinner.map { t.lagMaske & (1 << UInt8($0)) != 0 ? 1 : 0 } ?? 0
+        return bonus + Dobbeltdummy().løs(b)
+    }
+
+    var beslutninger = 0, optimale = 0, sumFeil = 0
+    let start = Date()
+    for seed in 1...n {
+        let engine = GameEngine()
+        let spillere: [Int: AIPlayer] = [
+            0: AIPlayer(seat: 0, difficulty: .president, personality: .balansert),
+            1: AIPlayer(seat: 1, difficulty: .president, personality: .balansert),
+            2: AIPlayer(seat: 2, difficulty: .president, personality: .balansert),
+            3: AIPlayer(seat: 3, difficulty: .president, personality: .balansert),
+        ]
+        engine.startRunde(seed: seed)
+        var vakt = 0
+        while engine.phase != .rundeFerdig && engine.phase != .spillFerdig {
+            vakt += 1; if vakt > 400 { break }
+            switch engine.phase {
+            case .budrunde:
+                let s = engine.aktivBudgiver
+                _ = engine.giBud(seat: s, action: spillere[s]!.velgBud(engine: engine))
+            case .byttekort:
+                let s = engine.budgiverSeat!
+                _ = engine.kastByttekort(spillere[s]!.velgByttekort(engine: engine), seat: s)
+            case .velgTrumf:
+                let s = engine.budgiverSeat!
+                if let (suit, ønsket) = spillere[s]!.velgTrumfOgMakker(engine: engine) {
+                    _ = engine.velgTrumf(suit: suit, ønsket: ønsket)
+                }
+            case .spill:
+                let sete = engine.aktivSpiller
+                let kort = spillere[sete]!.velgKort(engine: engine)!
+                if engine.hands[sete].count <= grense {
+                    let t = byggTilstand(engine)
+                    let opt = Dobbeltdummy().løs(t)
+                    let valgt = verdiEtter(t, Kortmaske.indeks(kort))
+                    let feil = abs(opt - valgt)
+                    beslutninger += 1; sumFeil += feil
+                    if feil == 0 { optimale += 1 }
+                }
+                _ = engine.spill(kort: kort, seat: sete)
+            default: break
+            }
+        }
+    }
+    MesterAI.overstyrKonfig = nil
+    print("== Dobbeltdummy-optimalitet: MesterAI-kortspill (≤\(grense) kort/hånd) ==")
+    print(String(format: "  %d beslutninger  |  %.1f %% dobbeltdummy-optimale  |  snittfeil %.4f stikk/beslutning  (%.0f s)",
+        beslutninger, 100.0 * Double(optimale) / Double(max(1, beslutninger)),
+        Double(sumFeil) / Double(max(1, beslutninger)), Date().timeIntervalSince(start)))
+}
