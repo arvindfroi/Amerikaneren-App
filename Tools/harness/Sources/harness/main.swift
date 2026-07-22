@@ -629,3 +629,11 @@ if kommando == "format" {
     kjørFormat("20 runder, uten        ", maksRunder: 20, matchbevisst: false)
     MesterAI.overstyrKonfig = nil
 }
+
+if kommando == "budkal" {
+    budkalKommando(CommandLine.arguments)
+}
+
+if kommando == "budab" {
+    budabKommando(CommandLine.arguments)
+}

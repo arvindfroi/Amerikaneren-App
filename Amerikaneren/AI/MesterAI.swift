@@ -28,6 +28,11 @@ struct MesterKonfig {
     /// varians en venn (våg mer); leder man, er trygghet verdt mer enn
     /// marginale bud. Virker i begge partiformater.
     var matchbevisst = true
+    /// Forskyver terskelen for å gå inn i budrunden: legges rett til
+    /// tallbudets forventede poengsum, målt i poeng-EV. Positive verdier
+    /// gjør MesterAI mer villig til å by, negative mer forsiktig.
+    /// 0 = den kalibreringen EV-regnestykket selv gir.
+    var budAggresjon = 0.0
     /// Heuristikkvektene (håndvurdering, budvekting, EV-forming). Standard
     /// er de håndsatte verdiene; evolusjonssøket injiserer kandidater her.
     var vekter = MesterVekter()
@@ -66,6 +71,26 @@ final class MesterAI {
 
     /// Overstyring for benchmarks/AB-testing – brukes av AIPlayer om satt.
     static var overstyrKonfig: MesterKonfig?
+
+    /// Fast frø for AIPlayer-konstruerte MesterAI-er, slik at A/B-er blir
+    /// reproduserbare. nil = tilfeldig frø som før.
+    static var overstyrFrø: UInt64?
+
+    /// Én budbeslutning slik MesterAI selv så den – for kalibreringsmåling.
+    struct Buddiagnose {
+        var sete: Int
+        var minsteBud: Int?
+        /// Vektet andel samplede verdener der `minsteBud` ville holdt.
+        var pTallbud: Double
+        var evTallbud: Double
+        var evPass: Double
+        /// Vektet snitt av lagstikk i deklarasjonsscenariet.
+        var snittStikk: Double
+        var valgt: BidAction
+    }
+
+    /// Diagnosekrok: settes bare av måleverktøy, nil i vanlig spill.
+    static var budkrok: ((Buddiagnose) -> Void)?
 
     init(sete: Int, konfig: MesterKonfig = MesterKonfig(), seed: UInt64? = nil) {
         self.sete = sete
@@ -161,12 +186,17 @@ final class MesterAI {
             + trygghet * v.passTrygghet
         var besteAction = BidAction.pass
         var besteEV = evPass
+        var pTallbud = 0.0
+        var evTallbud = -Double.infinity
 
         if let b = minsteBud, !deklStikk.isEmpty {
             let p = deklStikk.filter { $0.stikk >= b }.reduce(0) { $0 + $1.vekt } / deklVekt
-            // Budvinneren vinner/taper det dobbelte av budet.
-            let ev = Double(2 * b) * (2 * p - 1)
+            // Budvinneren vinner/taper det dobbelte av budet. `budAggresjon`
+            // forskyver terskelen for i det hele tatt å gå inn i budrunden.
+            let ev = Double(2 * b) * (2 * p - 1) + konfig.budAggresjon
                 + desperasjon * Double(b) * v.budDesperasjon - trygghet * Double(b) * v.budTrygghet
+            pTallbud = p
+            evTallbud = ev
             if ev > besteEV {
                 besteAction = .bud(b)
                 besteEV = ev
@@ -190,6 +220,15 @@ final class MesterAI {
                 besteAction = .soloAmerikaner
                 besteEV = ev
             }
+        }
+        if let krok = MesterAI.budkrok {
+            let snittStikk = deklStikk.reduce(0.0) { $0 + Double($1.stikk) * $1.vekt } / deklVekt
+            krok(Buddiagnose(
+                sete: sete, minsteBud: minsteBud, pTallbud: pTallbud,
+                evTallbud: evTallbud, evPass: evPass,
+                snittStikk: deklStikk.isEmpty ? 0 : snittStikk,
+                valgt: besteAction
+            ))
         }
         return besteAction
     }
