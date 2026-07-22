@@ -65,11 +65,18 @@ final class MesterAI {
     /// Per-sete-overstyring (head-to-head-duell: én variant mot frossen MesterAI).
     /// Har forrang over `overstyrKonfig` for setene som er satt.
     static var overstyrKonfigPerSete: [Int: MesterKonfig] = [:]
+    /// Deterministisk frø-basis for benchmarks (felles tilfeldighet/CRN): når
+    /// satt seedes hver MesterAI fra `frøBasis + sete`, så to kjøringer som bare
+    /// skiller i logikk får identisk sampling-støy. Nødvendig for å måle små
+    /// kanter head-to-head. nil = tilfeldig (produksjon).
+    static var frøBasis: UInt64?
 
     init(sete: Int, konfig: MesterKonfig = MesterKonfig(), seed: UInt64? = nil) {
         self.sete = sete
         self.konfig = konfig
-        self.rng = SeededGenerator(seed: seed ?? UInt64.random(in: 1...UInt64.max))
+        self.rng = SeededGenerator(seed: seed
+            ?? MesterAI.frøBasis.map { $0 &+ UInt64(sete) }
+            ?? UInt64.random(in: 1...UInt64.max))
     }
 
     // MARK: - Budgivning

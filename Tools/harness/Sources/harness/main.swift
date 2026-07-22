@@ -227,6 +227,7 @@ if kommando == "duell" {
     }
 
     func poengSete0(seed: UInt64, variantSete0: Bool) -> Int? {
+        MesterAI.frøBasis = seed &* 0x9E3779B97F4A7C15   // felles tilfeldighet (CRN)
         MesterAI.overstyrKonfig = base
         MesterAI.overstyrKonfigPerSete = variantSete0 ? [0: variant] : [:]
         let spillere: [Int: AIPlayer] = [
