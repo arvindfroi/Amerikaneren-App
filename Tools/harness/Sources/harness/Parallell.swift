@@ -251,15 +251,19 @@ func parGjennomstrømning(runder: Int, tid: Double, tråder: Int) {
 
 /// Kjøper flere verdener i det hele tatt noe utenfor sluttspillet? Fast
 /// verdenstall (min == maks), rikelig tid, sete 0 mot 3× vanskelig.
-func parBredde(runder: Int, verdenstall: [Int], tråder: Int) {
-    print("== Breddekurve ved FAST verdenstall (tid binder ikke) ==")
+/// `sluttspillTak` pinner sluttspillbredden, slik at bare MIDTSPILLBREDDEN
+/// varierer. Det er nettopp den aksen parallelliseringen flytter i praksis
+/// (sluttspillet er alt over metningspunktet ved 0,45 s).
+func parBredde(runder: Int, verdenstall: [Int], tråder: Int, sluttspillTak: Int? = nil) {
+    print("== Breddekurve ved FAST verdenstall (tid binder ikke)"
+          + (sluttspillTak.map { ", sluttspill låst til \($0)" } ?? "") + " ==")
     var resultater: [Int: [Double]] = [:]
     for n in verdenstall {
         var konfig = entrådetKonfig(tid: 3600)
         konfig.maksTråder = tråder
         konfig.maksVerdener = n
-        konfig.maksVerdenerSluttspill = n
-        konfig.minVerdener = n
+        konfig.maksVerdenerSluttspill = sluttspillTak ?? n
+        konfig.minVerdener = min(n, sluttspillTak ?? n)
         var poeng: [Double] = []
         let start = Date()
         for r in 1...runder {
@@ -277,6 +281,7 @@ func parBredde(runder: Int, verdenstall: [Int], tråder: Int) {
         print(String(format: "  %5d verdener: %+.2f ± %.2f poeng/runde (n=%d, %.0f s)",
                      n, m, se, antall, Date().timeIntervalSince(start)))
         parLogg(["måling": "bredde", "verdenstall": n, "tråder": tråder,
+                 "sluttspill_tak": sluttspillTak ?? n,
                  "poeng_per_runde": m, "se": se, "n": antall,
                  "poeng": poeng.map { Int($0) }])
     }
@@ -286,8 +291,10 @@ func parBredde(runder: Int, verdenstall: [Int], tråder: Int) {
             guard let x = resultater[n], x.count == b.count else { continue }
             let diff = zip(x, b).map(-)
             let (m, se, antall) = snittOgSE(diff)
-            print(String(format: "    parret %d − %d: %+.2f ± %.2f (n=%d)", n, basis, m, se, antall))
+            print(String(format: "    parret %d − %d: %+.2f ± %.2f (n=%d, %.1f SE)",
+                         n, basis, m, se, antall, se > 0 ? m / se : 0))
             parLogg(["måling": "bredde_parret", "fra": basis, "til": n,
+                     "sluttspill_tak": sluttspillTak ?? -1,
                      "differanse": m, "se": se, "n": antall])
         }
     }
@@ -360,14 +367,16 @@ func parStyrkeAB(runder: Int, tid: Double, tråder: Int, fastVerdenstall: Int?) 
 /// entrådede; i orientering B er det speilvendt. Samme utdelinger og samme
 /// frø i begge orienteringer, så seteeffekter kanselleres. Måltallet er
 /// poeng per runde til de parallelle setene minus de entrådede.
-func parHodeMotHode(runder: Int, tid: Double, tråder: Int) {
+func parHodeMotHode(runder: Int, tid: Double, tråder: Int, fra: Int = 0) {
     print("== Hode mot hode: parallell MesterAI mot dagens MesterAI (\(tid) s begge) ==")
     let par = parallellKonfig(tid: tid, tråder: tråder)
     let ent = entrådetKonfig(tid: tid)
     var diff: [Double] = []
     var sumParV = 0, sumParT = 0, sumEntV = 0, sumEntT = 0
     let start = Date()
-    for r in 1...runder {
+    // `fra` lar en kjøring fortsette der en tidligere slapp, med nye
+    // utdelinger, slik at resultatene kan slås sammen.
+    for r in (fra + 1)...(fra + runder) {
         let seed = UInt64(r) &* 2_654_435_761 &+ 17
         var rundeDiff = 0.0
         var ok = true
@@ -408,7 +417,7 @@ func parHodeMotHode(runder: Int, tid: Double, tråder: Int) {
     print(String(format: "     verdener/trekk: parallell %.0f, entrådet %.0f",
                  sumParT > 0 ? Double(sumParV) / Double(sumParT) : 0,
                  sumEntT > 0 ? Double(sumEntV) / Double(sumEntT) : 0))
-    parLogg(["måling": "h2h", "differanse": m, "se": se, "n": n,
+    parLogg(["måling": "h2h", "differanse": m, "se": se, "n": n, "fra": fra,
              "se_avstand": se > 0 ? m / se : 0, "tråder": tråder, "tidsbudsjett": tid,
              "par_verdener_per_trekk": sumParT > 0 ? Double(sumParV) / Double(sumParT) : 0,
              "ent_verdener_per_trekk": sumEntT > 0 ? Double(sumEntV) / Double(sumEntT) : 0,

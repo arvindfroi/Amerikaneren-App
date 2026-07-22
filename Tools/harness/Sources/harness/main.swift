@@ -645,6 +645,10 @@ if kommando == "parallell" {
         parGjennomstrømning(runder: tall(3, 3), tid: desimal(4, 0.45), tråder: tall(5, kjerner - 1))
     case "bredde":
         parBredde(runder: tall(3, 120), verdenstall: [36, 120, 400, 1200], tråder: tall(4, kjerner - 1))
+    case "bredde-midt":
+        // Bare midtspillbredden varierer; sluttspillet låses på dagens tak.
+        parBredde(runder: tall(3, 150), verdenstall: [36, 120, 400, 1200],
+                  tråder: tall(4, kjerner - 1), sluttspillTak: tall(5, 1200))
     case "ab":
         parStyrkeAB(runder: tall(3, 300), tid: desimal(4, 0.45),
                     tråder: tall(5, kjerner - 1), fastVerdenstall: nil)
@@ -652,7 +656,8 @@ if kommando == "parallell" {
         parStyrkeAB(runder: tall(3, 300), tid: desimal(4, 0.45),
                     tråder: tall(5, kjerner - 1), fastVerdenstall: tall(6, 36))
     case "h2h":
-        parHodeMotHode(runder: tall(3, 200), tid: desimal(4, 0.45), tråder: tall(5, kjerner - 1))
+        parHodeMotHode(runder: tall(3, 200), tid: desimal(4, 0.45),
+                       tråder: tall(5, kjerner - 1), fra: tall(6, 0))
     default:
         print("harness parallell gjennomstrømning|bredde|ab|ab-fast|h2h [...]")
     }
