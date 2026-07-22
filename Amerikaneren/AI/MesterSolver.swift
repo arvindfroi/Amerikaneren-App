@@ -114,6 +114,34 @@ final class Dobbeltdummy {
         tabell.reserveCapacity(1 << 14)
     }
 
+    /// Relativ-rang-kanonisering: bare kortenes innbyrdes rekkefølge i hver
+    /// farge betyr noe for verdien, så mange absolutte stillinger deler samme
+    /// TT-nøkkel. Fargeidentitet (trumf) bevares. Gir vesentlig færre noder.
+    static func kanonisk(_ hender: SIMD4<UInt64>) -> SIMD4<UInt64> {
+        var c = SIMD4<UInt64>(repeating: 0)
+        let uni = hender[0] | hender[1] | hender[2] | hender[3]
+        for s in 0..<4 {
+            let skift = UInt64(s * 13)
+            let u = (uni & Kortmaske.fargeMaske(s)) >> skift
+            for p in 0..<4 {
+                let h = (hender[p] & Kortmaske.fargeMaske(s)) >> skift
+                c[p] |= pext(h, u) << skift
+            }
+        }
+        return c
+    }
+    /// Parallell bit-ekstraksjon (pext-emulering; ingen maskinvare-intrinsic i Swift).
+    private static func pext(_ v: UInt64, _ mask: UInt64) -> UInt64 {
+        var res: UInt64 = 0, m = mask, bb: UInt64 = 1
+        while m != 0 {
+            let lsb = m & (~m &+ 1)
+            if v & lsb != 0 { res |= bb }
+            bb <<= 1
+            m &= m &- 1
+        }
+        return res
+    }
+
     func løs(_ t: Spilltilstand) -> Int {
         let maks = t.hender[t.leder].nonzeroBitCount + (t.pågående.isEmpty ? 0 : 1)
         return løs(t, alfa: -1, beta: maks + 1)
@@ -130,7 +158,7 @@ final class Dobbeltdummy {
             maks = t.hender[t.leder].nonzeroBitCount
             if alfa >= maks { return maks }
             if beta <= 0 { return 0 }
-            let k = Nøkkel(hender: t.hender, leder: Int8(t.leder))
+            let k = Nøkkel(hender: Dobbeltdummy.kanonisk(t.hender), leder: Int8(t.leder))
             nøkkel = k
             if let g = tabell[k] {
                 if Int(g.nedre) >= beta { return Int(g.nedre) }
