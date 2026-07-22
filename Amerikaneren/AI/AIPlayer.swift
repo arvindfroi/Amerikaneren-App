@@ -276,9 +276,11 @@ struct AIPlayer {
         if annenSeat == budgiver {
             annenErBudgiverlag = true
         } else if engine.makkerSeat == annenSeat {
-            // Budgiveren og makkeren selv kjenner koblingen fra start;
-            // forsvarerne først når ønskekortet er lagt.
-            annenErBudgiverlag = jegErBudgiverlag || engine.makkerAvslørt
+            // Ingen vet hvem makkeren er før det etterlyste kortet er lagt –
+            // heller ikke budgiveren, som bare kjenner kortet, ikke hånden
+            // det ligger på. Makkeren selv treffer aldri denne grenen (den
+            // krever annenSeat != seat), så avsløringen er eneste kilde.
+            annenErBudgiverlag = engine.makkerAvslørt
         } else {
             annenErBudgiverlag = false
         }
