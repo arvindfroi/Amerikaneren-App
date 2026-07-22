@@ -15,6 +15,12 @@ struct MesterKonfig {
     /// Når så mange stikk (eller færre) gjenstår, løses resten eksakt med
     /// dobbeltdummy; før det spilles grådig fram til grensen.
     var eksaktStikkGrense = 6
+    /// Hvilken policy som spiller ut den grådige fasen i **kortspillsøket** –
+    /// lik for alle fire seter i simuleringen. Se `Utrullingspolicy`.
+    /// Bud-, bytte- og trumfvurderingen beholder alltid den grådige
+    /// utrullingen: der er utrullingen en verdifunksjon for en hel hånd, ikke
+    /// utrullingspolicyen i et søk over kandidattrekk.
+    var utrullingspolicy: Utrullingspolicy = .grådig
     /// Myk tidsgrense for ett kortvalg.
     var tidsbudsjett: TimeInterval = 0.45
     /// Antall samplede utdelinger for budvurdering og trumfvalg.
@@ -128,10 +134,17 @@ final class MesterAI {
     /// Hvor mange verdener siste `velgKort` rakk. Kun for måling.
     private(set) var sisteVerdenstall = 0
 
+    /// Basefrø for utrullingene. Utledet av setets frø uten å trekke fra
+    /// `rng`, slik at den grådige (deterministiske) armen får nøyaktig
+    /// samme tilfeldighetssekvens som før policyvalget ble innført.
+    private let utrullingsbase: UInt64
+
     init(sete: Int, konfig: MesterKonfig = MesterKonfig(), seed: UInt64? = nil) {
+        let frø = seed ?? UInt64.random(in: 1...UInt64.max)
         self.sete = sete
         self.konfig = konfig
-        self.rng = SeededGenerator(seed: seed ?? UInt64.random(in: 1...UInt64.max))
+        self.rng = SeededGenerator(seed: frø)
+        self.utrullingsbase = (frø &* 0x2545_F491_4F6C_DD1D) | 1
     }
 
     // MARK: - Parallell verdensevaluering
@@ -600,8 +613,13 @@ final class MesterAI {
                 let vekt = budVekt(profiler: innsikt.budProfiler, hender: verden.hender,
                                    spiltAv: innsikt.spiltAvSete, stikkTotalt: innsikt.stikkTotalt)
                 let dd = Dobbeltdummy()   // deles på tvers av kandidatene i samme verden
+                // Samme utrullingsfrø for alle kandidatene i verdenen: felles
+                // tilfeldighet er variansreduksjon, og gjør stokastiske
+                // policyer like upartiske mellom kandidatene som grådig er.
+                let uFrø = Self.verdensfrø(utrullingsbase, verdener)
                 for (i, kandidat) in kandidater.enumerated() {
-                    sum[i] += vekt * vurder(kandidat: kandidat, verden: verden, innsikt: innsikt, dd: dd)
+                    sum[i] += vekt * vurder(kandidat: kandidat, verden: verden,
+                                            innsikt: innsikt, dd: dd, utrullingsfrø: uFrø)
                 }
                 verdener += 1
             }
@@ -622,9 +640,11 @@ final class MesterAI {
                     let vekt = budVekt(profiler: innsikt.budProfiler, hender: verden.hender,
                                        spiltAv: innsikt.spiltAvSete, stikkTotalt: innsikt.stikkTotalt)
                     let dd = Dobbeltdummy()   // egen tabell per verden
+                    let uFrø = Self.verdensfrø(utrullingsbase, v)
                     for (i, kandidat) in kandidater.enumerated() {
                         buf[v * bredde + i] = vekt * vurder(kandidat: kandidat, verden: verden,
-                                                            innsikt: innsikt, dd: dd)
+                                                            innsikt: innsikt, dd: dd,
+                                                            utrullingsfrø: uFrø)
                     }
                     buf[v * bredde + k] = 1
                 }
@@ -658,7 +678,8 @@ final class MesterAI {
     /// stillingen i partiet. Kontrakten dominerer av seg selv (±2n/±n er
     /// de store poengene), egne stikk teller fullt utenfor budlaget, og å
     /// krysse målstreken (eller fôre en motstander over den) trumfer alt.
-    private func vurder(kandidat: Int, verden: Verden, innsikt: Spillinnsikt, dd: Dobbeltdummy) -> Double {
+    private func vurder(kandidat: Int, verden: Verden, innsikt: Spillinnsikt,
+                        dd: Dobbeltdummy, utrullingsfrø: UInt64) -> Double {
         var t = Spilltilstand(
             hender: verden.hender, leder: innsikt.leder, pågående: innsikt.pågående,
             trumfFarge: innsikt.trumfFarge, lagMaske: verden.lagMaske,
@@ -669,7 +690,9 @@ final class MesterAI {
         if let vinnerSete = Spillregler.utfør(&t, indeks: kandidat) {
             perSete[vinnerSete] += 1
         }
-        t = GrådigSpiller.spillUt(t, stoppVedStikkIgjen: konfig.eksaktStikkGrense, perSete: &perSete)
+        var utrullingsRng = SeededGenerator(seed: utrullingsfrø)
+        t = GrådigSpiller.spillUt(t, policy: konfig.utrullingspolicy, rng: &utrullingsRng,
+                                  stoppVedStikkIgjen: konfig.eksaktStikkGrense, perSete: &perSete)
 
         let ddLag = dd.løs(t)
         var lagStikk = ddLag

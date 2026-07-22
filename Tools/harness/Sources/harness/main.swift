@@ -662,3 +662,28 @@ if kommando == "parallell" {
         print("harness parallell gjennomstrømning|bredde|ab|ab-fast|h2h [...]")
     }
 }
+
+if kommando == "utrulling" {
+    // Måleprogrammet for utrullingspolicyen i kortspillsøket.
+    let under = CommandLine.arguments.count > 2 ? CommandLine.arguments[2] : "hjelp"
+    func tall(_ i: Int, _ standard: Int) -> Int {
+        CommandLine.arguments.count > i ? Int(CommandLine.arguments[i]) ?? standard : standard
+    }
+    func tekst(_ i: Int, _ standard: String) -> String {
+        CommandLine.arguments.count > i ? CommandLine.arguments[i] : standard
+    }
+    let standardPolicyer = "grådig,halvgrådig-0.75,halvgrådig-0.5,halvgrådig-0.25,tilfeldig,billig"
+    switch under {
+    case "kurve":
+        utrullingKurve(runder: tall(3, 50), fra: tall(5, 0), verdenstall: tall(4, 36),
+                       policyer: utrullingPolicyliste(tekst(6, standardPolicyer)))
+    case "fart":
+        utrullingFart(gjentakelser: tall(3, 20000),
+                      policyer: utrullingPolicyliste(tekst(4, standardPolicyer)))
+    case "nevrofart":
+        nevroFart(gjentakelser: tall(3, 20000))
+    default:
+        print("harness utrulling kurve <runder> <verdenstall> <fra> [policyer]")
+        print("harness utrulling fart <gjentakelser> [policyer]")
+    }
+}
