@@ -34,6 +34,14 @@ static inline std::pair<int,double> besteTrumf(u64 hand){
 // ---- Grådig fullinformasjonspolicy (utrulling) – port av GrådigSpiller ----
 static inline int gCost(int idx,int trump){ return (suitOf(idx)==trump?100:0)+rankOf(idx); }
 static inline int gCheapest(u64 m,int trump){ int best=-1,bc=1e9; u64 x=m; while(x){int i=lowest(x);x&=x-1; int c=gCost(i,trump); if(c<bc){bc=c;best=i;}} return best; }
+// Prinsipielt default-utspill: led lavt fra lengste sidefarge (etabler lengde)
+// i stedet for det globalt billigste kortet.
+static inline int leadFromLongest(u64 m,int trump){
+    int bestSuit=-1,bestLen=0;
+    for(int f=0;f<4;f++){ if(f==trump) continue; int len=popcount(m&suitMask(f)); if(len>bestLen){bestLen=len;bestSuit=f;} }
+    if(bestSuit<0) return gCheapest(m,trump);
+    return lowest(m&suitMask(bestSuit));
+}
 static bool gCanBeat(const SState&t,int seat,int best,int ledF){
     u64 hand=t.hands[seat], follow=hand&suitMask(ledF);
     if(follow){ if(suitOf(best)!=ledF) return false; return rankOf(highest(follow))>rankOf(best); }
@@ -57,7 +65,7 @@ static int greedyPick(const SState& t){
             bool ok=true; for(int fo:foes){ if((t.hands[fo]&fm)==0 && t.trump>=0 && (t.hands[fo]&suitMask(t.trump))) { ok=false; break; } }
             if(ok) return topp;
         }
-        return gCheapest(m,t.trump);
+        return leadFromLongest(m,t.trump);   // prinsipielt default-utspill
     }
     int ledF=suitOf(t.trCard[0]); int bestSeat=t.trSeat[0], bestIdx=t.trCard[0];
     for(int i=1;i<t.trCount;i++) if(sbeats(t.trCard[i],bestIdx,t.trump)){bestSeat=t.trSeat[i];bestIdx=t.trCard[i];}

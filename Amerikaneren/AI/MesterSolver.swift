@@ -331,7 +331,22 @@ enum GrådigSpiller {
             }
             if holdbar { return topp }
         }
-        return billigste(m, trumfFarge: t.trumfFarge)
+        // Prinsipielt default-utspill: led lavt fra lengste sidefarge (etabler
+        // lengde) i stedet for det globalt billigste kortet. Løftet
+        // åpnings-optimaliteten (11 kort 88 %→94 %) i C++-måling.
+        return ledFraLengde(m, trumfFarge: t.trumfFarge)
+    }
+
+    /// Led lavt fra den lengste sidefargen (ikke trumf). Utvikler stikk i lange
+    /// farger; makkeren er oftere kort og kan trumfe.
+    private static func ledFraLengde(_ m: UInt64, trumfFarge: Int?) -> Int {
+        var besteFarge = -1, besteLengde = 0
+        for f in 0..<4 where f != trumfFarge {
+            let len = (m & Kortmaske.fargeMaske(f)).nonzeroBitCount
+            if len > besteLengde { besteLengde = len; besteFarge = f }
+        }
+        if besteFarge < 0 { return billigste(m, trumfFarge: trumfFarge) }
+        return Kortmaske.laveste(m & Kortmaske.fargeMaske(besteFarge))
     }
 
     private static func kanSlå(_ t: Spilltilstand, sete: Int, beste: Int, ledFarge: Int) -> Bool {
