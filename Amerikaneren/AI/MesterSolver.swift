@@ -102,6 +102,11 @@ final class Dobbeltdummy {
     private struct Nøkkel: Hashable {
         let hender: SIMD4<UInt64>
         let leder: Int8
+        /// Hvilket lag som maksimerer. MesterAI holder én løser per verden og
+        /// har derfor konstant lagmaske, men ISMCTS gjenbruker løseren over
+        /// mange determiniseringer der makkeren – og dermed lagmasken – kan
+        /// være ulik. Uten lagmasken i nøkkelen ville de forgifte hverandre.
+        let lag: UInt8
     }
     private struct Grense {
         var nedre: Int8
@@ -110,8 +115,16 @@ final class Dobbeltdummy {
 
     private var tabell: [Nøkkel: Grense] = [:]
 
-    init() {
-        tabell.reserveCapacity(1 << 14)
+    init(kapasitet: Int = 1 << 14) {
+        tabell.reserveCapacity(kapasitet)
+    }
+
+    /// Hvor mange stillinger tabellen holder – ISMCTS gjenbruker én løser
+    /// gjennom hele søket og tømmer den når den vokser seg for stor.
+    var lagredeStillinger: Int { tabell.count }
+
+    func tøm() {
+        tabell.removeAll(keepingCapacity: true)
     }
 
     func løs(_ t: Spilltilstand) -> Int {
@@ -130,7 +143,7 @@ final class Dobbeltdummy {
             maks = t.hender[t.leder].nonzeroBitCount
             if alfa >= maks { return maks }
             if beta <= 0 { return 0 }
-            let k = Nøkkel(hender: t.hender, leder: Int8(t.leder))
+            let k = Nøkkel(hender: t.hender, leder: Int8(t.leder), lag: t.lagMaske)
             nøkkel = k
             if let g = tabell[k] {
                 if Int(g.nedre) >= beta { return Int(g.nedre) }

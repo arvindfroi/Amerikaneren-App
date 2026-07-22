@@ -240,6 +240,35 @@ final class MesterAIStikk11Tests: XCTestCase {
                                     "Feilspillet er tilbake: A♠ kastes i sluttspillet")
     }
 
+    /// Samme regresjon for informasjonssett-søket: SO-ISMCTS skal også
+    /// beholde A♠ og legge K♦. Dette er den kjente riktige avgjørelsen
+    /// (4/9 mot 3/9 av de uniforme verdenene), og den er uavhengig av
+    /// søkemetode – bommer ISMCTS her, er noe galt med treet eller med
+    /// målfunksjonen, ikke med spillestilen.
+    func testISMCTSBeholderSparEssVedStikk11() {
+        let engine = byggPosisjon()
+        var valgte: [Card: Int] = [:]
+        let antallFrø = 40
+        var konfig = ISMCTSKonfig()
+        konfig.tidsbudsjett = 0
+        konfig.maksIterasjoner = 4000
+        for frø in 1...antallFrø {
+            let søk = MesterISMCTS(sete: 1, konfig: konfig, seed: UInt64(frø))
+            guard let valg = søk.velgKort(engine: engine) else {
+                return XCTFail("velgKort ga ingen kort")
+            }
+            valgte[valg, default: 0] += 1
+        }
+        for (kort, n) in valgte.sorted(by: { $0.value > $1.value }) {
+            print(String(format: "  ISMCTS legger %@ (beholder %@): %3d av %d (%.1f %%)",
+                         kort.kortSymbol,
+                         engine.hands[1].first { $0 != kort }!.kortSymbol,
+                         n, antallFrø, 100.0 * Double(n) / Double(antallFrø)))
+        }
+        XCTAssertGreaterThanOrEqual(valgte[ru(.king), default: 0], antallFrø - 2,
+                                    "ISMCTS kaster A♠ i sluttspillet")
+    }
+
     /// Hvor mange verdener rekker søket i sluttspillet, og hvor mange ville
     /// tidsbudsjettet tillatt? Replikerer velgKort-løkka uten verdenstak.
     func testVerdenerInnenTidsbudsjettISluttspill() {

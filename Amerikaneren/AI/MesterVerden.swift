@@ -327,3 +327,124 @@ extension Spillinnsikt {
         }.count
     }
 }
+
+// MARK: - Budvekt
+
+/// Hvor sannsynlig en samplet verden er gitt det setene meldte. Delt kode,
+/// slik at PIMC-søket i `MesterAI` og informasjonssett-søket i
+/// `MesterISMCTS` bruker nøyaktig samme verdensfordeling – ellers ville en
+/// sammenlikning av de to måle vektingen og ikke søkemetoden.
+enum Budvekt {
+    static func vekt(profiler: [BudProfil], hender: SIMD4<UInt64>, spiltAv: [UInt64]?,
+                     stikkTotalt: Int, egetSete: Int) -> Double {
+        var vekt = 1.0
+        for s in 0..<4 where s != egetSete {
+            let profil = profiler[s]
+            guard profil.harSignal else { continue }
+            let full = hender[s] | (spiltAv?[s] ?? 0)
+            guard full != 0 else { continue }
+            let est = AIPlayer.besteTrumf(hånd: Kortmaske.kortliste(full)).estimat
+            if profil.meldteAlle {
+                vekt *= exp(-0.5 * max(0, Double(stikkTotalt) - 2.0 - est))
+            } else if let n = profil.tallbud {
+                vekt *= exp(-0.6 * max(0, Double(n) - (est + 2.5)))
+            }
+            if let gulv = profil.passetVedGulv {
+                vekt *= exp(-0.4 * max(0, est + 2.0 - Double(gulv) - 1.5))
+            }
+        }
+        return max(vekt, 0.02)
+    }
+}
+
+// MARK: - Målfunksjonen i kortspillet
+
+extension Spillinnsikt {
+    /// Budvekten for en samplet verden i stikkspillet.
+    func budVekt(hender: SIMD4<UInt64>) -> Double {
+        Budvekt.vekt(profiler: budProfiler, hender: hender, spiltAv: spiltAvSete,
+                     stikkTotalt: stikkTotalt, egetSete: sete)
+    }
+
+    /// Målfunksjonen i kortspillet, regnet ut for **alle fire seter**.
+    ///
+    /// Dette er nøyaktig regnestykket fra `MesterAI.vurder`, bare generalisert
+    /// fra «eget sete» til et sete-parameter: forventet poengendring for setet
+    /// minus de tre andres, vektet mot hvor nær hver av dem er målstreken, og
+    /// med et stort tillegg/fradrag for å krysse (eller fôre noen over)
+    /// målstreken. `MesterAI` henter fortsatt bare sin egen komponent, så tall
+    /// og A/B-er derfra er uendret; ISMCTS trenger hele vektoren fordi hvert
+    /// sete i treet maksimerer sin egen verdi (max^n).
+    ///
+    /// - Parameters:
+    ///   - lagMaske: budgiverlagets seter i den samplede verdenen.
+    ///   - perSete: stikk vunnet per sete etter rotstillingen.
+    ///   - restLagStikk: budgiverlagets stikk i den delen som ble løst med
+    ///     dobbeltdummy (0 når resten er spilt helt ut).
+    func måltall(lagMaske: UInt8, perSete: [Int], restLagStikk: Int) -> SIMD4<Double> {
+        var lagStikk = restLagStikk
+        for s in 0..<4 where lagMaske & (1 << UInt8(s)) != 0 {
+            lagStikk += stikkTatt[s] + perSete[s]
+        }
+
+        let mål: Int
+        switch bud {
+        case .bud(let n): mål = n
+        case .amerikaner, .soloAmerikaner, .pass: mål = stikkTotalt
+        }
+        let suksess = lagStikk >= mål
+
+        // Poengsatser som i motoren (GameEngine.avsluttRunde).
+        let budgiverPoeng: Int
+        let makkerPoeng: Int
+        switch bud {
+        case .soloAmerikaner:
+            budgiverPoeng = målPoeng; makkerPoeng = 0
+        case .amerikaner:
+            budgiverPoeng = målPoeng / 2; makkerPoeng = målPoeng / 4
+        case .bud(let n):
+            budgiverPoeng = n * budgiverFaktor; makkerPoeng = n
+        case .pass:
+            budgiverPoeng = 0; makkerPoeng = 0
+        }
+
+        // Forsvarernes stikk er eksakte for den spilte delen; en eventuell
+        // dobbeltdummy-hale gir bare lagets sum, så resten fordeles likt.
+        let spiltStikk = (0..<4).reduce(0) { $0 + stikkTatt[$1] + perSete[$1] }
+        let haleForsvar = (stikkTotalt - spiltStikk) - restLagStikk
+        let antallForsvarere = 4 - (0..<4).count { lagMaske & (1 << UInt8($0)) != 0 }
+        let forsvarsAndel = antallForsvarere > 0 ? Double(haleForsvar) / Double(antallForsvarere) : 0
+
+        var delta = SIMD4<Double>(repeating: 0)
+        for s in 0..<4 {
+            if s == budgiver {
+                delta[s] = Double(suksess ? budgiverPoeng : -budgiverPoeng)
+            } else if lagMaske & (1 << UInt8(s)) != 0 {
+                delta[s] = Double(suksess ? makkerPoeng : -makkerPoeng)
+            } else {
+                delta[s] = Double(stikkTatt[s] + perSete[s]) + forsvarsAndel
+            }
+        }
+
+        var ut = SIMD4<Double>(repeating: 0)
+        let målstrek = Double(målPoeng)
+        for meg in 0..<4 {
+            var verdi = delta[meg]
+            for s in 0..<4 where s != meg {
+                let nærhet = Double(min(poengNå[s], målPoeng)) / Double(målPoeng)
+                verdi -= (1.0 + nærhet) / 3.0 * delta[s]
+            }
+            if harMålstrek {
+                if Double(poengNå[meg]) + delta[meg] >= målstrek {
+                    verdi += målstrek
+                } else if (0..<4).contains(where: {
+                    $0 != meg && Double(poengNå[$0]) + delta[$0] >= målstrek
+                }) {
+                    verdi -= målstrek
+                }
+            }
+            ut[meg] = verdi
+        }
+        return ut
+    }
+}

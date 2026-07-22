@@ -64,6 +64,14 @@ final class MesterAI {
     /// Overstyring for benchmarks/AB-testing – brukes av AIPlayer om satt.
     static var overstyrKonfig: MesterKonfig?
 
+    /// Fast basefrø for benchmarks: gjør de samplede verdenene reproduserbare,
+    /// slik at en parret A/B måler tiltaket og ikke bare Monte Carlo-støyen.
+    /// Setet legges til, så setene ikke deler tallrekke.
+    static var overstyrFrø: UInt64?
+
+    /// Hvor mange verdener siste `velgKort` rakk. Kun for måling.
+    private(set) var sisteVerdenstall = 0
+
     init(sete: Int, konfig: MesterKonfig = MesterKonfig(), seed: UInt64? = nil) {
         self.sete = sete
         self.konfig = konfig
@@ -410,6 +418,7 @@ final class MesterAI {
             }
             verdener += 1
         }
+        sisteVerdenstall = verdener
         guard verdener > 0 else { return nil }
 
         var besteIndeks = kandidater[0]
@@ -446,70 +455,12 @@ final class MesterAI {
         }
         t = GrådigSpiller.spillUt(t, stoppVedStikkIgjen: konfig.eksaktStikkGrense, perSete: &perSete)
 
-        let ddLag = dd.løs(t)
-        var lagStikk = ddLag
-        for s in 0..<4 where verden.lagMaske & (1 << UInt8(s)) != 0 {
-            lagStikk += innsikt.stikkTatt[s] + perSete[s]
-        }
-
-        let mål: Int
-        switch innsikt.bud {
-        case .bud(let n): mål = n
-        case .amerikaner, .soloAmerikaner, .pass: mål = innsikt.stikkTotalt
-        }
-        let suksess = lagStikk >= mål
-
-        // Poengsatser som i motoren (GameEngine.avsluttRunde).
-        let budgiverPoeng: Int
-        let makkerPoeng: Int
-        switch innsikt.bud {
-        case .soloAmerikaner:
-            budgiverPoeng = innsikt.målPoeng; makkerPoeng = 0
-        case .amerikaner:
-            budgiverPoeng = innsikt.målPoeng / 2; makkerPoeng = innsikt.målPoeng / 4
-        case .bud(let n):
-            budgiverPoeng = n * innsikt.budgiverFaktor; makkerPoeng = n
-        case .pass:
-            budgiverPoeng = 0; makkerPoeng = 0
-        }
-
-        // Forsvarernes stikk er eksakte for den spilte/grådige delen; løserens
-        // hale gir bare lagets sum, så restforsvarsstikkene fordeles likt.
-        let spiltStikk = (0..<4).reduce(0) { $0 + innsikt.stikkTatt[$1] + perSete[$1] }
-        let haleForsvar = (innsikt.stikkTotalt - spiltStikk) - ddLag
-        let antallForsvarere = 4 - (0..<4).count { verden.lagMaske & (1 << UInt8($0)) != 0 }
-        let forsvarsAndel = antallForsvarere > 0 ? Double(haleForsvar) / Double(antallForsvarere) : 0
-
-        var delta = [Double](repeating: 0, count: 4)
-        for s in 0..<4 {
-            if s == innsikt.budgiver {
-                delta[s] = Double(suksess ? budgiverPoeng : -budgiverPoeng)
-            } else if verden.lagMaske & (1 << UInt8(s)) != 0 {
-                delta[s] = Double(suksess ? makkerPoeng : -makkerPoeng)
-            } else {
-                delta[s] = Double(innsikt.stikkTatt[s] + perSete[s]) + forsvarsAndel
-            }
-        }
-
-        // Egen poengendring minus motstandernes, vektet mot stillingen:
-        // en motstander nær målstreken er farligere å fôre enn en på bunn.
-        let meg = innsikt.sete
-        var verdi = delta[meg]
-        for s in 0..<4 where s != meg {
-            let nærhet = Double(min(innsikt.poengNå[s], innsikt.målPoeng)) / Double(innsikt.målPoeng)
-            verdi -= (1.0 + nærhet) / 3.0 * delta[s]
-        }
-
-        // Å vinne eller tape hele partiet trumfer rundepoengene.
-        if innsikt.harMålstrek {
-            let målstrek = Double(innsikt.målPoeng)
-            if Double(innsikt.poengNå[meg]) + delta[meg] >= målstrek {
-                verdi += målstrek
-            } else if (0..<4).contains(where: { $0 != meg && Double(innsikt.poengNå[$0]) + delta[$0] >= målstrek }) {
-                verdi -= målstrek
-            }
-        }
-        return verdi
+        // Selve regnestykket bor i `Spillinnsikt.måltall`, slik at ISMCTS
+        // bruker nøyaktig samme målfunksjon; her hentes bare egen komponent.
+        let verdier = innsikt.måltall(
+            lagMaske: verden.lagMaske, perSete: perSete, restLagStikk: dd.løs(t)
+        )
+        return verdier[innsikt.sete]
     }
 
     // MARK: - Budvekting
@@ -520,23 +471,8 @@ final class MesterAI {
     private func budVekt(profiler: [BudProfil], hender: SIMD4<UInt64>,
                          spiltAv: [UInt64]?, stikkTotalt: Int) -> Double {
         guard konfig.budvekting else { return 1 }
-        var vekt = 1.0
-        for s in 0..<4 where s != sete {
-            let profil = profiler[s]
-            guard profil.harSignal else { continue }
-            let full = hender[s] | (spiltAv?[s] ?? 0)
-            guard full != 0 else { continue }
-            let est = AIPlayer.besteTrumf(hånd: Kortmaske.kortliste(full)).estimat
-            if profil.meldteAlle {
-                vekt *= exp(-0.5 * max(0, Double(stikkTotalt) - 2.0 - est))
-            } else if let n = profil.tallbud {
-                vekt *= exp(-0.6 * max(0, Double(n) - (est + 2.5)))
-            }
-            if let gulv = profil.passetVedGulv {
-                vekt *= exp(-0.4 * max(0, est + 2.0 - Double(gulv) - 1.5))
-            }
-        }
-        return max(vekt, 0.02)
+        return Budvekt.vekt(profiler: profiler, hender: hender, spiltAv: spiltAv,
+                            stikkTotalt: stikkTotalt, egetSete: sete)
     }
 
     // MARK: - Sampling før spillet
