@@ -31,6 +31,16 @@ Kommandoer:
   companion  Poengblokken for fysiske kort, i terminalen.
              --demo         kjør et scriptet eksempelparti (ikke interaktivt)
 
+  evolusjon  Turneringsevolusjon over MesterAI-heuristikkvektene: bord à 4
+             (alle President), speilrotasjoner og tilfeldige poengstillinger,
+             de beste avler neste generasjon. Sjekkpunktes og gjenopptas fra
+             --katalog (standard ~/evolusjon); `touch <katalog>/STOPP`
+             stanser kontrollert. Ankermåling mot standardvektene hver
+             --ankerHver generasjon avgjør «beste noensinne».
+             --populasjon N (20) --runder N (24) --omstokk N (2)
+             --tid SEK (0.1) --ankerHver N (5) --ankerRunder N (400)
+             --generasjoner N (0 = til STOPP)
+
   hjelp      Denne teksten.
 
 Eksempler:
@@ -131,6 +141,17 @@ case "spill":
     SpillKommando.kjør(argv: argv, innstillinger: lesInnstillinger(argv))
 case "companion":
     CompanionKommando.kjør(demo: argv.contains("--demo"))
+case "evolusjon":
+    var evo = Evolusjon.Innstillinger()
+    if let katalog = flaggVerdi("katalog", argv) { evo.katalog = katalog }
+    if let n = flaggVerdi("populasjon", argv).flatMap({ Int($0) }) { evo.populasjon = n }
+    if let n = flaggVerdi("runder", argv).flatMap({ Int($0) }) { evo.runderPerBord = n }
+    if let n = flaggVerdi("omstokk", argv).flatMap({ Int($0) }) { evo.omstokk = n }
+    if let t = flaggVerdi("tid", argv).flatMap({ Double($0) }) { evo.tidsbudsjett = t }
+    if let n = flaggVerdi("ankerHver", argv).flatMap({ Int($0) }) { evo.ankerHver = n }
+    if let n = flaggVerdi("ankerRunder", argv).flatMap({ Int($0) }) { evo.ankerRunder = n }
+    if let n = flaggVerdi("generasjoner", argv).flatMap({ Int($0) }) { evo.maksGenerasjoner = n }
+    Evolusjon(innstillinger: evo).kjør()
 case nil, "hjelp", "--help", "-h":
     print(hjelpetekst)
 default:

@@ -25,36 +25,39 @@ struct AIPlayer {
 
     // MARK: - Håndvurdering
 
-    /// Estimerer antall stikk med gitt farge som trumf.
-    static func estimerStikk(hånd: [Card], trumf: Suit) -> Double {
+    /// Estimerer antall stikk med gitt farge som trumf. Vektene kan byttes
+    /// ut per kall (evolusjonssøket); standard er de håndsatte verdiene.
+    static func estimerStikk(hånd: [Card], trumf: Suit,
+                             vekter v: MesterVekter = MesterVekter()) -> Double {
         var estimat = 0.0
         let trumfKort = hånd.filter { $0.suit == trumf }
         // Trumflengde er konge: hvert trumfkort over 3 er nesten et stikk.
-        estimat += Double(trumfKort.count) * 0.55
-        if trumfKort.count > 3 { estimat += Double(trumfKort.count - 3) * 0.4 }
+        estimat += Double(trumfKort.count) * v.trumfPerKort
+        if trumfKort.count > 3 { estimat += Double(trumfKort.count - 3) * v.trumfLengdeBonus }
 
         for kort in hånd {
             let iFarge = hånd.filter { $0.suit == kort.suit }.count
             switch kort.rank {
-            case .ace: estimat += kort.suit == trumf ? 1.0 : 0.9
-            case .king: estimat += iFarge >= 2 ? 0.65 : 0.3
-            case .queen: estimat += iFarge >= 3 ? 0.35 : 0.15
+            case .ace: estimat += kort.suit == trumf ? v.essTrumf : v.essSide
+            case .king: estimat += iFarge >= 2 ? v.kongeStøttet : v.kongeSingel
+            case .queen: estimat += iFarge >= 3 ? v.dameStøttet : v.dameSingel
             default: break
             }
         }
         // Renons og singelton gir stjålne stikk med trumf på hånden.
         for suit in Suit.allCases where suit != trumf {
             let antall = hånd.filter { $0.suit == suit }.count
-            if antall == 0 { estimat += min(2.0, Double(trumfKort.count)) * 0.45 }
-            if antall == 1 { estimat += 0.3 }
+            if antall == 0 { estimat += min(2.0, Double(trumfKort.count)) * v.renonsFaktor }
+            if antall == 1 { estimat += v.singeltonBonus }
         }
         return estimat
     }
 
-    static func besteTrumf(hånd: [Card]) -> (suit: Suit, estimat: Double) {
+    static func besteTrumf(hånd: [Card],
+                           vekter: MesterVekter = MesterVekter()) -> (suit: Suit, estimat: Double) {
         var beste: (Suit, Double) = (.spar, -1)
         for suit in Suit.allCases {
-            let e = estimerStikk(hånd: hånd, trumf: suit)
+            let e = estimerStikk(hånd: hånd, trumf: suit, vekter: vekter)
             if e > beste.1 { beste = (suit, e) }
         }
         return beste
@@ -273,9 +276,11 @@ struct AIPlayer {
         if annenSeat == budgiver {
             annenErBudgiverlag = true
         } else if engine.makkerSeat == annenSeat {
-            // Budgiveren og makkeren selv kjenner koblingen fra start;
-            // forsvarerne først når ønskekortet er lagt.
-            annenErBudgiverlag = jegErBudgiverlag || engine.makkerAvslørt
+            // Ingen vet hvem makkeren er før det etterlyste kortet er lagt –
+            // heller ikke budgiveren, som bare kjenner kortet, ikke hånden
+            // det ligger på. Makkeren selv treffer aldri denne grenen (den
+            // krever annenSeat != seat), så avsløringen er eneste kilde.
+            annenErBudgiverlag = engine.makkerAvslørt
         } else {
             annenErBudgiverlag = false
         }
