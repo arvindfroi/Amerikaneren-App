@@ -706,6 +706,7 @@ if kommando == "optimalitet" {
     }
 
     var beslutninger = 0, optimale = 0, sumFeil = 0
+    var beslNivå = [Int](repeating: 0, count: 14), optNivå = [Int](repeating: 0, count: 14), feilNivå = [Int](repeating: 0, count: 14)
     let start = Date()
     for seed in 1...n {
         let engine = GameEngine()
@@ -739,8 +740,10 @@ if kommando == "optimalitet" {
                     let opt = Dobbeltdummy().løs(t)
                     let valgt = verdiEtter(t, Kortmaske.indeks(kort))
                     let feil = abs(opt - valgt)
+                    let nivå = engine.hands[sete].count
                     beslutninger += 1; sumFeil += feil
-                    if feil == 0 { optimale += 1 }
+                    beslNivå[nivå] += 1; feilNivå[nivå] += feil
+                    if feil == 0 { optimale += 1; optNivå[nivå] += 1 }
                 }
                 _ = engine.spill(kort: kort, seat: sete)
             default: break
@@ -752,4 +755,10 @@ if kommando == "optimalitet" {
     print(String(format: "  %d beslutninger  |  %.1f %% dobbeltdummy-optimale  |  snittfeil %.4f stikk/beslutning  (%.0f s)",
         beslutninger, 100.0 * Double(optimale) / Double(max(1, beslutninger)),
         Double(sumFeil) / Double(max(1, beslutninger)), Date().timeIntervalSince(start)))
+    print("  per kort-igjen (åpning → sluttspill):")
+    for nivå in stride(from: 13, through: 1, by: -1) where beslNivå[nivå] > 0 {
+        print(String(format: "    %2d kort: %.1f %% optimale, snittfeil %.3f  (n=%d)",
+            nivå, 100.0 * Double(optNivå[nivå]) / Double(beslNivå[nivå]),
+            Double(feilNivå[nivå]) / Double(beslNivå[nivå]), beslNivå[nivå]))
+    }
 }
