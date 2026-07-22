@@ -40,6 +40,19 @@ Success of PIMC»): i stikkspill med kort horisont og høy «disambiguation» er
 PIMC uvanlig sterk, og ISMCTS gir ofte lite eller negativt. MesterAI ligger
 altså nær taket for denne spillklassen.
 
+## Bekreftelse: er MesterAI near-optimal?
+Ny `optimalitet`-kommando i Swift-harnessen måler dobbeltdummy-gapet: for hvert
+kortvalg (≤8 kort igjen) sammenlignes MesterAIs kort med det perfekt-informasjons-
+optimale.
+
+- **Kortspill (sluttspill, 1920 beslutninger over 60 runder): 97,4 %
+  dobbeltdummy-optimale, snittfeil 0,028 stikk/beslutning.** Near-perfekt.
+
+Dette forklarer direkte hvorfor ingen kortspill-lever bet på – marginen finnes
+nesten ikke. Forbehold: måler sluttspillet (8 av 12 stikk); åpningen (12–9 kort,
+der grådig utrulling brukes) er ikke målt og kan ha mer margin. Dobbeltdummy er
+en øvre grense (perfekt info); full garanti krever utnyttbarhet (best-response).
+
 ## Ærlig delkonklusjon
 Etter å ha målt bud (paritet – MesterAI har det alt), dypere eksakt (0), grov
 vekting (0) og ISMCTS (−0,5): **ingen prøvd lever slår MesterAI.** Den er en
