@@ -629,3 +629,152 @@ if kommando == "format" {
     kjørFormat("20 runder, uten        ", maksRunder: 20, matchbevisst: false)
     MesterAI.overstyrKonfig = nil
 }
+
+// MARK: - Lekkasjekartlegging
+
+if kommando == "ddtid" {
+    // Hvor dyrt er dobbeltdummy på en HEL utdeling (12 stikk)?
+    print("== Dobbeltdummy paa faktiske utdelinger ==")
+    for stikk in [8, 10, 12] {
+        var sum = 0.0, verste = 0.0
+        let n = stikk == 12 ? 10 : 20
+        var rng = SeededGenerator(seed: 99)
+        for _ in 0..<n {
+            let t = tilfeldigTilstand(stikk: stikk, rng: &rng, medPlikt: true)
+            let start = Date()
+            _ = Dobbeltdummy().løs(t)
+            let tid = Date().timeIntervalSince(start)
+            sum += tid; verste = max(verste, tid)
+        }
+        print(String(format: "  %d stikk: snitt %.0f ms, verste %.0f ms", stikk, sum / Double(n) * 1000, verste * 1000))
+    }
+    // Full attribusjonslinje paa en ekte runde.
+    MesterAI.overstyrKonfig = fastKonfig(); MesterAI.overstyrFrø = 4242
+    let start = Date()
+    if let logg = lekkasjeRunde(frø: 12345, grader: Array(repeating: .president, count: 4), medMotfakta: false) {
+        print(String(format: "  en runde med attribusjon: %.1f s (par %d, faktisk %d)",
+                     Date().timeIntervalSince(start), logg.ddPar, logg.lagStikk))
+    }
+    let start2 = Date()
+    if let logg = lekkasjeRunde(frø: 12345, grader: Array(repeating: .president, count: 4), medMotfakta: true) {
+        print(String(format: "  samme runde MED motfakta: %.1f s (bestepar %d)",
+                     Date().timeIntervalSince(start2), logg.bestePar))
+    }
+    MesterAI.overstyrKonfig = nil
+}
+
+if kommando == "lekkasje" {
+    // Kartlegger hvor MesterAI taper poeng. Argumenter:
+    //   lekkasje <utfil> <froStart> <antall> <oppsett> <motfakta 0|1> [sluttspillverdener]
+    let args = CommandLine.arguments
+    let utfil = args.count > 2 ? args[2] : NSHomeDirectory() + "/diag/resultater.jsonl"
+    let frøStart = args.count > 3 ? UInt64(args[3]) ?? 1 : 1
+    let antall = args.count > 4 ? UInt64(args[4]) ?? 100 : 100
+    let oppsett = args.count > 5 ? args[5] : "selvspill"
+    let motfakta = args.count > 6 ? args[6] == "1" : false
+    let sluttspill = args.count > 7 ? Int(args[7]) ?? 200 : 200
+
+    let grader: [AIDifficulty]
+    switch oppsett {
+    case "selvspill": grader = Array(repeating: .president, count: 4)
+    case "mot-vanskelig": grader = [.president, .vanskelig, .vanskelig, .vanskelig]
+    default: grader = Array(repeating: .president, count: 4)
+    }
+    MesterAI.overstyrKonfig = fastKonfig(sluttspill: sluttspill); MesterAI.overstyrFrø = 4242
+    let logg = Loggfil(utfil)
+    let start = Date()
+    var talte = 0
+    for i in 0..<antall {
+        let frø = frøStart &+ i
+        guard let r = lekkasjeRunde(frø: frø, grader: grader, medMotfakta: motfakta) else { continue }
+        talte += 1
+        logg.skriv("{\"oppsett\":\"\(oppsett)\",\"sluttspill\":\(sluttspill)," + String(r.json.dropFirst()))
+        if talte % 25 == 0 {
+            FileHandle.standardError.write("  \(talte)/\(antall) etter \(Int(Date().timeIntervalSince(start))) s\n".data(using: .utf8)!)
+        }
+    }
+    print("skrev \(talte) runder til \(utfil) paa \(Int(Date().timeIntervalSince(start))) s")
+    MesterAI.overstyrKonfig = nil
+}
+
+if kommando == "ddprofil" {
+    MesterAI.overstyrKonfig = fastKonfig(sluttspill: 200)
+    MesterAI.overstyrFrø = 4242
+    ddProfil = true
+    for frø in UInt64(1)...3 {
+        let t = Date()
+        _ = lekkasjeRunde(frø: frø, grader: Array(repeating: .president, count: 4), medMotfakta: false)
+        print(String(format: " runde %d totalt %.1f s", frø, Date().timeIntervalSince(t)))
+    }
+    MesterAI.overstyrKonfig = nil
+}
+
+
+if kommando == "ab2" {
+    // Parret A/B med FASTE verdenstall og FAST froe for MesterAI: begge armene
+    // ser noeyaktig samme utdelinger OG samme Monte Carlo-tall, saa differansen
+    // maaler tiltaket og ikke stoeyen. Sete 0 er President, resten Vanskelig.
+    let n = CommandLine.arguments.count > 2 ? Int(CommandLine.arguments[2]) ?? 150 : 150
+    let tiltakNavn = CommandLine.arguments.count > 3 ? CommandLine.arguments[3] : "lavtrumf"
+    let utfil = CommandLine.arguments.count > 4 ? CommandLine.arguments[4] : ""
+
+    func kjoer(_ tiltakPaa: Bool) -> [Int: RoundResult] {
+        // Begge armene har IDENTISKE verdenstall (ogsaa i sluttspillet), slik
+        // at forskjellen bare er selve tiltaket.
+        var k = fastKonfig(sluttspill: 28)
+        if tiltakNavn == "eksakt8", tiltakPaa { k.eksaktStikkGrense = 8 }
+        if tiltakNavn == "eksakt7", tiltakPaa { k.eksaktStikkGrense = 7 }
+        MesterAI.overstyrKonfig = k
+        _ = fastKonfig()
+        MesterAI.overstyrFrø = 4242
+        switch tiltakNavn {
+        case "lavtrumf": GrådigSpiller.ledLavTrumfUtenMester = tiltakPaa
+        case "lengste": GrådigSpiller.sikrestVinnerFraLengste = tiltakPaa
+        default: break
+        }
+        var ut: [Int: RoundResult] = [:]
+        for i in 0..<n {
+            let froe = UInt64(i) &* 13 &+ 5
+            let spillere: [Int: AIPlayer] = [
+                0: AIPlayer(seat: 0, difficulty: .president, personality: .balansert),
+                1: AIPlayer(seat: 1, difficulty: .vanskelig, personality: .balansert),
+                2: AIPlayer(seat: 2, difficulty: .vanskelig, personality: .balansert),
+                3: AIPlayer(seat: 3, difficulty: .vanskelig, personality: .balansert),
+            ]
+            if let r = spillRunde(seed: froe, spillere: spillere) { ut[i] = r }
+        }
+        GrådigSpiller.ledLavTrumfUtenMester = false
+        GrådigSpiller.sikrestVinnerFraLengste = false
+        MesterAI.overstyrKonfig = nil
+        MesterAI.overstyrFrø = nil
+        return ut
+    }
+
+    let start = Date()
+    let uten = kjoer(false)
+    let med = kjoer(true)
+    var diff: [Double] = []
+    var sumUten = 0, sumMed = 0, ulike = 0
+    for i in 0..<n {
+        guard let a = uten[i], let b = med[i] else { continue }
+        sumUten += a.poengEndring[0]
+        sumMed += b.poengEndring[0]
+        diff.append(Double(b.poengEndring[0] - a.poengEndring[0]))
+        if a.poengEndring[0] != b.poengEndring[0] { ulike += 1 }
+    }
+    let m = diff.reduce(0, +) / Double(max(1, diff.count))
+    let varians = diff.count > 1
+        ? diff.reduce(0.0) { $0 + ($1 - m) * ($1 - m) } / Double(diff.count - 1) : 0
+    let se = (varians / Double(max(1, diff.count))).squareRoot()
+    print("  tiltak: " + tiltakNavn)
+    print(String(format: "  runder %d, ulike utfall %d, %.0f s", diff.count, ulike, Date().timeIntervalSince(start)))
+    print(String(format: "  uten tiltak: %+.3f poeng/runde", Double(sumUten) / Double(max(1, diff.count))))
+    print(String(format: "  med tiltak:  %+.3f poeng/runde", Double(sumMed) / Double(max(1, diff.count))))
+    print(String(format: "  DIFFERANSE:  %+.3f +/- %.3f (95 %%)", m, 1.96 * se))
+    if !utfil.isEmpty {
+        let logg = Loggfil(utfil)
+        logg.skriv(String(format: "{\"n\":%d,\"uten\":%.4f,\"med\":%.4f,\"diff\":%.4f,\"ci95\":%.4f,\"ulike\":%d}",
+                          diff.count, Double(sumUten) / Double(max(1, diff.count)),
+                          Double(sumMed) / Double(max(1, diff.count)), m, 1.96 * se, ulike))
+    }
+}

@@ -63,6 +63,10 @@ final class MesterAI {
 
     /// Overstyring for benchmarks/AB-testing – brukes av AIPlayer om satt.
     static var overstyrKonfig: MesterKonfig?
+    /// Fast frø for benchmarks: gjør utrullingene reproduserbare, slik at
+    /// parret A/B måler tiltaket og ikke bare Monte Carlo-støyen.
+    /// Setet legges til, så setene ikke deler tallrekke.
+    static var overstyrFrø: UInt64?
 
     init(sete: Int, konfig: MesterKonfig = MesterKonfig(), seed: UInt64? = nil) {
         self.sete = sete
