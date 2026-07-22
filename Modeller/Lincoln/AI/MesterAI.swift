@@ -15,12 +15,6 @@ struct MesterKonfig {
     /// Når så mange stikk (eller færre) gjenstår, løses resten eksakt med
     /// dobbeltdummy; før det spilles grådig fram til grensen.
     var eksaktStikkGrense = 6
-    /// Grense brukt i simuleringene for bud, byttekort og trumfvalg.
-    /// `nil` betyr samme verdi som `eksaktStikkGrense`; feltet finnes for
-    /// aa kunne maale kortspill og budgivning hver for seg.
-    var eksaktStikkGrenseSim: Int? = nil
-    /// Den effektive grensen i bud-/bytte-/trumfsimuleringene.
-    var simGrense: Int { eksaktStikkGrenseSim ?? eksaktStikkGrense }
     /// Myk tidsgrense for ett kortvalg.
     var tidsbudsjett: TimeInterval = 0.45
     /// Antall samplede utdelinger for budvurdering og trumfvalg.
@@ -34,9 +28,6 @@ struct MesterKonfig {
     /// varians en venn (våg mer); leder man, er trygghet verdt mer enn
     /// marginale bud. Virker i begge partiformater.
     var matchbevisst = true
-    /// Heuristikkvektene (håndvurdering, budvekting, EV-forming). Standard
-    /// er de håndsatte verdiene; evolusjonssøket injiserer kandidater her.
-    var vekter = MesterVekter()
 
     /// Skalerer søket etter maskinvaren: flere kjerner gir flere verdener og
     /// dypere eksakt sluttspill innenfor samme tidsbudsjett.
@@ -72,10 +63,14 @@ final class MesterAI {
 
     /// Overstyring for benchmarks/AB-testing – brukes av AIPlayer om satt.
     static var overstyrKonfig: MesterKonfig?
-    /// Fast frø for benchmarks: gjør utrullingene reproduserbare, slik at
-    /// parret A/B måler tiltaket og ikke bare Monte Carlo-støyen.
+
+    /// Fast basefrø for benchmarks: gjør de samplede verdenene reproduserbare,
+    /// slik at en parret A/B måler tiltaket og ikke bare Monte Carlo-støyen.
     /// Setet legges til, så setene ikke deler tallrekke.
     static var overstyrFrø: UInt64?
+
+    /// Hvor mange verdener siste `velgKort` rakk. Kun for måling.
+    private(set) var sisteVerdenstall = 0
 
     init(sete: Int, konfig: MesterKonfig = MesterKonfig(), seed: UInt64? = nil) {
         self.sete = sete
@@ -96,8 +91,7 @@ final class MesterAI {
             return nil
         }.min()
 
-        let v = konfig.vekter
-        let (heuristiskFarge, estimat) = AIPlayer.besteTrumf(hånd: hånd, vekter: v)
+        let (heuristiskFarge, estimat) = AIPlayer.besteTrumf(hånd: hånd)
         let alleStikk = regler.maksBud
 
         // Matchbevissthet: «senhet» er hvor nær partiet er slutten (nærhet
@@ -116,15 +110,15 @@ final class MesterAI {
             } else {
                 senhet = min(1, max(minPoeng, besteAndre) / mål)
             }
-            desperasjon = min(1, max(0, (besteAndre - minPoeng) / mål * v.desperasjonSkala)) * senhet
-            trygghet = min(1, max(0, (minPoeng - besteAndre) / mål * v.desperasjonSkala)) * senhet
+            desperasjon = min(1, max(0, (besteAndre - minPoeng) / mål * 2)) * senhet
+            trygghet = min(1, max(0, (minPoeng - besteAndre) / mål * 2)) * senhet
         }
 
         // Solo-amerikaner simuleres bare når hånden er i nærheten av å bære
         // alle stikkene alene – desperasjon senker terskelen litt.
         let vurderSolo = lovlige.contains(.soloAmerikaner)
-            && estimat + Double(regler.antallByttekort) * v.byttekortEstimat
-                >= Double(alleStikk) - v.soloTerskelSlingring - desperasjon * v.soloDesperasjonLette
+            && estimat + Double(regler.antallByttekort) * 0.4
+                >= Double(alleStikk) - 2.5 - desperasjon * 1.5
 
         var deklStikk: [(stikk: Int, vekt: Double)] = []
         var passVerdier: [(verdi: Double, vekt: Double)] = []
@@ -146,7 +140,7 @@ final class MesterAI {
                 hånd: minHånd, farge: heuristiskFarge, hender: hender,
                 talon: talon, regler: regler
             ) {
-                deklStikk.append((GrådigSpiller.lagStikk(plan, eksaktFra: konfig.simGrense), vekt))
+                deklStikk.append((GrådigSpiller.lagStikk(plan, eksaktFra: konfig.eksaktStikkGrense), vekt))
             }
 
             // Scenario 2: jeg passer, og den sterkeste motstanderen spiller.
@@ -159,7 +153,7 @@ final class MesterAI {
                 talon: talon, regler: regler
             ) {
                 soloTalt += vekt
-                if GrådigSpiller.lagStikk(solo, eksaktFra: konfig.simGrense) == alleStikk {
+                if GrådigSpiller.lagStikk(solo, eksaktFra: konfig.eksaktStikkGrense) == alleStikk {
                     soloKlart += vekt
                 }
             }
@@ -168,7 +162,7 @@ final class MesterAI {
         let deklVekt = max(1e-9, deklStikk.reduce(0) { $0 + $1.vekt })
         let passVekt = max(1e-9, passVerdier.reduce(0) { $0 + $1.vekt })
         let evPass = passVerdier.reduce(0) { $0 + $1.verdi * $1.vekt } / passVekt
-            + trygghet * v.passTrygghet
+            + trygghet * 1.5
         var besteAction = BidAction.pass
         var besteEV = evPass
 
@@ -176,7 +170,7 @@ final class MesterAI {
             let p = deklStikk.filter { $0.stikk >= b }.reduce(0) { $0 + $1.vekt } / deklVekt
             // Budvinneren vinner/taper det dobbelte av budet.
             let ev = Double(2 * b) * (2 * p - 1)
-                + desperasjon * Double(b) * v.budDesperasjon - trygghet * Double(b) * v.budTrygghet
+                + desperasjon * Double(b) * 0.6 - trygghet * Double(b) * 0.4
             if ev > besteEV {
                 besteAction = .bud(b)
                 besteEV = ev
@@ -186,7 +180,7 @@ final class MesterAI {
             // Amerikaner: laget må ta alle stikkene; budvinner ±målPoeng/2.
             let p = deklStikk.filter { $0.stikk >= alleStikk }.reduce(0) { $0 + $1.vekt } / deklVekt
             let ev = Double(regler.målPoeng / 2) * (2 * p - 1)
-                + desperasjon * Double(regler.målPoeng) * v.amerikanerDesperasjon
+                + desperasjon * Double(regler.målPoeng) * 0.10
             if ev > besteEV {
                 besteAction = .amerikaner
                 besteEV = ev
@@ -195,7 +189,7 @@ final class MesterAI {
         if vurderSolo, soloTalt > 0 {
             let p = soloKlart / soloTalt
             let ev = Double(regler.målPoeng) * (2 * p - 1)
-                + desperasjon * Double(regler.målPoeng) * v.soloDesperasjon
+                + desperasjon * Double(regler.målPoeng) * 0.15
             if ev > besteEV {
                 besteAction = .soloAmerikaner
                 besteEV = ev
@@ -222,7 +216,7 @@ final class MesterAI {
 
         // Trumfkandidater: de to beste fargene på den store hånden.
         let rangerte = Kortmaske.farger
-            .map { suit in (Kortmaske.fargeIndeks(suit), AIPlayer.estimerStikk(hånd: engine.hands[sete], trumf: suit, vekter: konfig.vekter)) }
+            .map { suit in (Kortmaske.fargeIndeks(suit), AIPlayer.estimerStikk(hånd: engine.hands[sete], trumf: suit)) }
             .sorted { $0.1 > $1.1 }
         let trumfKandidater = rangerte.prefix(2).map(\.0)
 
@@ -278,7 +272,7 @@ final class MesterAI {
                     hender: h, leder: sete, pågående: [], trumfFarge: kandidat.trumf,
                     lagMaske: lag, budgiver: sete, pliktkort: plikt, førsteStikk: true
                 )
-                let stikk = GrådigSpiller.lagStikk(tilstand, eksaktFra: konfig.simGrense)
+                let stikk = GrådigSpiller.lagStikk(tilstand, eksaktFra: konfig.eksaktStikkGrense)
                 if stikk >= mål { klarte[i] += vekt }
                 sumStikk[i] += vekt * Double(stikk)
             }
@@ -379,7 +373,7 @@ final class MesterAI {
                     lagMaske: lag, budgiver: sete, pliktkort: ønskeIdx,
                     førsteStikk: true
                 )
-                let stikk = GrådigSpiller.lagStikk(tilstand, eksaktFra: konfig.simGrense)
+                let stikk = GrådigSpiller.lagStikk(tilstand, eksaktFra: konfig.eksaktStikkGrense)
                 if stikk >= mål { klarte[i] += vekt }
                 sumStikk[i] += vekt * Double(stikk)
             }
@@ -392,68 +386,20 @@ final class MesterAI {
 
     // MARK: - Kortspill
 
-    /// Én kandidat i kortrangeringen: representanten for en sekvens
-    /// likeverdige kort, verdien (vektet snitt av målfunksjonen i `vurder`
-    /// over de samplede verdenene) og hvilke lovlige kort som er utbyttbare
-    /// med representanten (inkludert den selv).
-    struct Kortkandidat {
-        let kort: Card
-        let likeverdige: [Card]
-        let verdi: Double
-    }
-
     func velgKort(engine: GameEngine) -> Card? {
-        velgKortMedRangering(engine: engine)?.valg
-    }
-
-    /// Som `velgKort`, men returnerer i tillegg hele kandidatrangeringen
-    /// (anbefalingen først) og antall samplede verdener. Brukes av
-    /// trener-modusen i web-GUI-en. Valget er identisk med `velgKort`
-    /// (som delegerer hit), og metoden ser aldri skjult informasjon –
-    /// all innsikt går via `Spillinnsikt`.
-    func velgKortMedRangering(engine: GameEngine)
-        -> (valg: Card, kandidater: [Kortkandidat], verdener: Int)? {
         let lovlige = engine.lovligeKort(for: sete)
         guard !lovlige.isEmpty else { return nil }
-        if lovlige.count == 1 {
-            return (lovlige[0], [Kortkandidat(kort: lovlige[0], likeverdige: lovlige, verdi: 0)], 0)
-        }
+        if lovlige.count == 1 { return lovlige[0] }
         guard let innsikt = Spillinnsikt(engine: engine, sete: sete) else { return nil }
 
         // Likeverdige kort (ingen gjenværende kort imellom) prøves bare én gang.
         let pågåendeMaske = innsikt.pågående.reduce(UInt64(0)) { $0 | (1 << UInt64($1.indeks)) }
         let union = innsikt.ukjente | innsikt.minHånd | pågåendeMaske
-        let lovligMaske = Kortmaske.maske(lovlige)
-        let kandidater = Spillregler.reduserteTrekk(lovlig: lovligMaske, union: union)
-
-        // Kortene som er utbyttbare med `representant`: sammenhengende
-        // lovlige kort (i union-rekkefølgen) fra representanten og nedover –
-        // speilbildet av sekvensreduksjonen i `Spillregler.reduserteTrekk`.
-        func likeverdige(med representant: Int) -> [Card] {
-            var u = union & Kortmaske.fargeMaske(representant / 13)
-            var gruppe: [Int] = []
-            while u != 0 {
-                let idx = 63 - u.leadingZeroBitCount
-                u &= ~(1 << UInt64(idx))
-                if lovligMaske & (1 << UInt64(idx)) != 0 {
-                    if idx == representant || !gruppe.isEmpty { gruppe.append(idx) }
-                } else if !gruppe.isEmpty {
-                    break
-                }
-            }
-            return gruppe.map(Kortmaske.kort)
-        }
-
-        if kandidater.count == 1 {
-            let kort = Kortmaske.kort(kandidater[0])
-            return (kort, [Kortkandidat(kort: kort,
-                                        likeverdige: likeverdige(med: kandidater[0]),
-                                        verdi: 0)], 0)
-        }
+        let kandidater = Spillregler.reduserteTrekk(lovlig: Kortmaske.maske(lovlige), union: union)
+        if kandidater.count == 1 { return Kortmaske.kort(kandidater[0]) }
 
         let frist = Date().addingTimeInterval(konfig.tidsbudsjett)
         var sum = [Double](repeating: 0, count: kandidater.count)
-        var vektSum = 0.0
         // Når hele resten løses eksakt gjelder sluttspillstaket; ellers det
         // ordinære taket (der begrenser tidsbudsjettet uansett først).
         let stikkIgjen = innsikt.antallKort[innsikt.leder] + (innsikt.pågående.isEmpty ? 0 : 1)
@@ -470,9 +416,9 @@ final class MesterAI {
             for (i, kandidat) in kandidater.enumerated() {
                 sum[i] += vekt * vurder(kandidat: kandidat, verden: verden, innsikt: innsikt, dd: dd)
             }
-            vektSum += vekt
             verdener += 1
         }
+        sisteVerdenstall = verdener
         guard verdener > 0 else { return nil }
 
         var besteIndeks = kandidater[0]
@@ -487,20 +433,7 @@ final class MesterAI {
                 besteSum = sum[i]
             }
         }
-
-        let valg = Kortmaske.kort(besteIndeks)
-        let normering = max(vektSum, 1e-9)
-        var rangering = kandidater.enumerated().map { i, kandidat in
-            Kortkandidat(kort: Kortmaske.kort(kandidat),
-                         likeverdige: likeverdige(med: kandidat),
-                         verdi: sum[i] / normering)
-        }
-        rangering.sort { $0.verdi > $1.verdi }
-        // Anbefalingen (med kostnads-tiebreak) skal alltid stå først.
-        if let i = rangering.firstIndex(where: { $0.kort == valg }), i != 0 {
-            rangering.insert(rangering.remove(at: i), at: 0)
-        }
-        return (valg, rangering, verdener)
+        return Kortmaske.kort(besteIndeks)
     }
 
     /// Verdien av å legge `kandidat` i den samplede verdenen: spill grådig
@@ -522,71 +455,12 @@ final class MesterAI {
         }
         t = GrådigSpiller.spillUt(t, stoppVedStikkIgjen: konfig.eksaktStikkGrense, perSete: &perSete)
 
-        let ddLag = dd.løs(t)
-        var lagStikk = ddLag
-        for s in 0..<4 where verden.lagMaske & (1 << UInt8(s)) != 0 {
-            lagStikk += innsikt.stikkTatt[s] + perSete[s]
-        }
-
-        let mål: Int
-        switch innsikt.bud {
-        case .bud(let n): mål = n
-        case .amerikaner, .soloAmerikaner, .pass: mål = innsikt.stikkTotalt
-        }
-        let suksess = lagStikk >= mål
-
-        // Poengsatser som i motoren (GameEngine.avsluttRunde).
-        let budgiverPoeng: Int
-        let makkerPoeng: Int
-        switch innsikt.bud {
-        case .soloAmerikaner:
-            budgiverPoeng = innsikt.målPoeng; makkerPoeng = 0
-        case .amerikaner:
-            budgiverPoeng = innsikt.målPoeng / 2; makkerPoeng = innsikt.målPoeng / 4
-        case .bud(let n):
-            budgiverPoeng = n * innsikt.budgiverFaktor; makkerPoeng = n
-        case .pass:
-            budgiverPoeng = 0; makkerPoeng = 0
-        }
-
-        // Forsvarernes stikk er eksakte for den spilte/grådige delen; løserens
-        // hale gir bare lagets sum, så restforsvarsstikkene fordeles likt.
-        let spiltStikk = (0..<4).reduce(0) { $0 + innsikt.stikkTatt[$1] + perSete[$1] }
-        let haleForsvar = (innsikt.stikkTotalt - spiltStikk) - ddLag
-        let antallForsvarere = 4 - (0..<4).count { verden.lagMaske & (1 << UInt8($0)) != 0 }
-        let forsvarsAndel = antallForsvarere > 0 ? Double(haleForsvar) / Double(antallForsvarere) : 0
-
-        var delta = [Double](repeating: 0, count: 4)
-        for s in 0..<4 {
-            if s == innsikt.budgiver {
-                delta[s] = Double(suksess ? budgiverPoeng : -budgiverPoeng)
-            } else if verden.lagMaske & (1 << UInt8(s)) != 0 {
-                delta[s] = Double(suksess ? makkerPoeng : -makkerPoeng)
-            } else {
-                delta[s] = Double(innsikt.stikkTatt[s] + perSete[s]) + forsvarsAndel
-            }
-        }
-
-        // Egen poengendring minus motstandernes, vektet mot stillingen:
-        // en motstander nær målstreken er farligere å fôre enn en på bunn.
-        let meg = innsikt.sete
-        let v = konfig.vekter
-        var verdi = delta[meg]
-        for s in 0..<4 where s != meg {
-            let nærhet = Double(min(innsikt.poengNå[s], innsikt.målPoeng)) / Double(innsikt.målPoeng)
-            verdi -= (v.motstanderBasis + nærhet) / v.motstanderNevner * delta[s]
-        }
-
-        // Å vinne eller tape hele partiet trumfer rundepoengene.
-        if innsikt.harMålstrek {
-            let målstrek = Double(innsikt.målPoeng)
-            if Double(innsikt.poengNå[meg]) + delta[meg] >= målstrek {
-                verdi += målstrek
-            } else if (0..<4).contains(where: { $0 != meg && Double(innsikt.poengNå[$0]) + delta[$0] >= målstrek }) {
-                verdi -= målstrek
-            }
-        }
-        return verdi
+        // Selve regnestykket bor i `Spillinnsikt.måltall`, slik at ISMCTS
+        // bruker nøyaktig samme målfunksjon; her hentes bare egen komponent.
+        let verdier = innsikt.måltall(
+            lagMaske: verden.lagMaske, perSete: perSete, restLagStikk: dd.løs(t)
+        )
+        return verdier[innsikt.sete]
     }
 
     // MARK: - Budvekting
@@ -597,24 +471,8 @@ final class MesterAI {
     private func budVekt(profiler: [BudProfil], hender: SIMD4<UInt64>,
                          spiltAv: [UInt64]?, stikkTotalt: Int) -> Double {
         guard konfig.budvekting else { return 1 }
-        let v = konfig.vekter
-        var vekt = 1.0
-        for s in 0..<4 where s != sete {
-            let profil = profiler[s]
-            guard profil.harSignal else { continue }
-            let full = hender[s] | (spiltAv?[s] ?? 0)
-            guard full != 0 else { continue }
-            let est = AIPlayer.besteTrumf(hånd: Kortmaske.kortliste(full), vekter: v).estimat
-            if profil.meldteAlle {
-                vekt *= exp(-v.alleEksp * max(0, Double(stikkTotalt) - v.alleSlingring - est))
-            } else if let n = profil.tallbud {
-                vekt *= exp(-v.tallEksp * max(0, Double(n) - (est + v.tallSlingring)))
-            }
-            if let gulv = profil.passetVedGulv {
-                vekt *= exp(-v.passEksp * max(0, est + v.passMakkerTillegg - Double(gulv) - v.passSlingring))
-            }
-        }
-        return max(vekt, 0.02)
+        return Budvekt.vekt(profiler: profiler, hender: hender, spiltAv: spiltAv,
+                            stikkTotalt: stikkTotalt, egetSete: sete)
     }
 
     // MARK: - Sampling før spillet
@@ -714,7 +572,7 @@ final class MesterAI {
         var besteEstimat = -1.0
         var besteFarge = Suit.spar
         for s in 0..<4 where s != sete {
-            let (farge, estimat) = AIPlayer.besteTrumf(hånd: Kortmaske.kortliste(hender[s]), vekter: konfig.vekter)
+            let (farge, estimat) = AIPlayer.besteTrumf(hånd: Kortmaske.kortliste(hender[s]))
             if estimat > besteEstimat {
                 besteSete = s
                 besteEstimat = estimat

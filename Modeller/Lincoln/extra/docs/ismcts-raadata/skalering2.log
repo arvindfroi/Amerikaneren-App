@@ -1,0 +1,5 @@
+#### SKALERING2 START 2026-07-22T15:43:10+02:00 ####
+kjerner=22  arbeidere=8  budverdener=12  logg=/home/arvind/ismcts/resultater.jsonl
+== Skalering: ISMCTS(N) mot ISMCTS(200) på identiske utdelinger ==
+Terminated                 ./ismcts-skal-bin skalering runder=600 basis=200 iter=500,1000,2000,5000,20000 budverdener=12 arbeidere=8
+#### SKALERING2 FERDIG 2026-07-22T15:46:58+02:00 ####

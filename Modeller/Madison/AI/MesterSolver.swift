@@ -119,13 +119,6 @@ final class Dobbeltdummy {
         return løs(t, alfa: -1, beta: maks + 1)
     }
 
-    /// Søk med et gitt alfa-beta-vindu. Verdien er eksakt når den ligger
-    /// strengt inne i vinduet, ellers er den en gyldig grense (fail-soft).
-    /// Brukes av diagnoseverktøyet til billige «holder verdien seg?»-tester.
-    func løsVindu(_ t: Spilltilstand, alfa: Int, beta: Int) -> Int {
-        løs(t, alfa: alfa, beta: beta)
-    }
-
     private func løs(_ t: Spilltilstand, alfa: Int, beta: Int) -> Int {
         let union = t.hender[0] | t.hender[1] | t.hender[2] | t.hender[3]
         if union == 0 { return 0 }
@@ -280,13 +273,6 @@ enum GrådigSpiller {
         return billigste(m, trumfFarge: t.trumfFarge)
     }
 
-    /// A/B-bryter for tiltaket «ikke led topptrumf inn i en høyere trumf».
-    /// Når den er på, ledes den LAVESTE trumfen med mindre laget faktisk
-    /// sitter med den høyeste utestående trumfen.
-    static var ledLavTrumfUtenMester = false
-    /// A/B-bryter: led sikre vinnere fra den lengste fargen, ikke den første.
-    static var sikrestVinnerFraLengste = false
-
     private static func velgUtspill(_ t: Spilltilstand, m: UInt64, sete: Int, fiender: [Int], union: UInt64) -> Int {
         // Budgiverlaget trekker trumf så lenge fiendene faktisk har trumf.
         if let trumf = t.trumfFarge, t.lagMaske & (1 << UInt8(sete)) != 0 {
@@ -294,21 +280,11 @@ enum GrådigSpiller {
             let fiendtligTrumf = fiender.reduce(UInt64(0)) { $0 | t.hender[$1] } & tm
             let minTrumf = m & tm
             if fiendtligTrumf != 0, minTrumf != 0 {
-                if ledLavTrumfUtenMester,
-                   Kortmaske.høyeste(minTrumf) < Kortmaske.høyeste(fiendtligTrumf) {
-                    // Toppkortet mitt taper uansett mot deres mester – trekk
-                    // trumfen billigst mulig i stedet for å fôre den.
-                    return Kortmaske.laveste(minTrumf)
-                }
                 return Kortmaske.høyeste(minTrumf)
             }
         }
         // Sikre vinnere: høyeste gjenværende kort i en farge fienden må følge
-        // (eller ikke kan trumfe). Med `sikrestVinnerFraLengste` velges den
-        // LENGSTE slike fargen i stedet for den første i fargerekkefølgen –
-        // da står flere oppfølgende vinnere klare i samme farge.
-        var besteSikre = -1
-        var besteLengde = -1
+        // (eller ikke kan trumfe).
         for farge in 0..<4 where farge != t.trumfFarge {
             let fm = Kortmaske.fargeMaske(farge)
             let mine = m & fm
@@ -320,15 +296,8 @@ enum GrådigSpiller {
                     || t.trumfFarge == nil
                     || t.hender[f] & Kortmaske.fargeMaske(t.trumfFarge!) == 0
             }
-            guard holdbar else { continue }
-            if !sikrestVinnerFraLengste { return topp }
-            let lengde = mine.nonzeroBitCount
-            if lengde > besteLengde {
-                besteLengde = lengde
-                besteSikre = topp
-            }
+            if holdbar { return topp }
         }
-        if besteSikre >= 0 { return besteSikre }
         return billigste(m, trumfFarge: t.trumfFarge)
     }
 

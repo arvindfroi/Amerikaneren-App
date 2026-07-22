@@ -119,13 +119,6 @@ final class Dobbeltdummy {
         return løs(t, alfa: -1, beta: maks + 1)
     }
 
-    /// Søk med et gitt alfa-beta-vindu. Verdien er eksakt når den ligger
-    /// strengt inne i vinduet, ellers er den en gyldig grense (fail-soft).
-    /// Brukes av diagnoseverktøyet til billige «holder verdien seg?»-tester.
-    func løsVindu(_ t: Spilltilstand, alfa: Int, beta: Int) -> Int {
-        løs(t, alfa: alfa, beta: beta)
-    }
-
     private func løs(_ t: Spilltilstand, alfa: Int, beta: Int) -> Int {
         let union = t.hender[0] | t.hender[1] | t.hender[2] | t.hender[3]
         if union == 0 { return 0 }
@@ -191,15 +184,73 @@ final class Dobbeltdummy {
     }
 }
 
+/// Hvilken policy som spiller ut resten av en samplet verden fram til
+/// dobbeltdummy overtar.
+///
+/// Policyen brukes for **alle fire seter** i simuleringen. Det er ikke en
+/// detalj: en utrulling som spiller skarpere for noen seter enn for andre
+/// skjevfordeler sammenlikningen mellom kandidatkortene, uansett hvor «god»
+/// den er i seg selv. Kjent MCTS-resultat (Gelly & Silver): en sterkere
+/// utrullingspolicy kan gjøre søket svakere.
+enum Utrullingspolicy: Equatable, CustomStringConvertible {
+    /// Dagens håndskrevne heuristikk (referansen).
+    case grådig
+    /// Uniformt tilfeldig blant lovlige kort – svak, men upartisk.
+    case tilfeldig
+    /// Grådig med sannsynlighet `p`, ellers tilfeldig. Gir en kurve mellom
+    /// `grådig` (p = 1) og `tilfeldig` (p = 0).
+    case halvgrådig(p: Double)
+    /// Grådig strippet for de *strategiske* delene: ingen trumftrekking,
+    /// ingen sikre-vinner-utspill og ingen oppslag i motstandernes (for
+    /// søkeren skjulte, for utrullingen åpne) hender. Bare: følg farge, ta
+    /// stikket billigst når motparten leder det, ellers legg billigst.
+    case billig
+
+    var description: String {
+        switch self {
+        case .grådig: return "grådig"
+        case .tilfeldig: return "tilfeldig"
+        case .halvgrådig(let p): return String(format: "halvgrådig-%.2f", p)
+        case .billig: return "billig"
+        }
+    }
+
+    /// Deterministiske policyer trenger ingen tilfeldighetskilde.
+    var erStokastisk: Bool {
+        switch self {
+        case .grådig, .billig: return false
+        case .tilfeldig: return true
+        case .halvgrådig(let p): return p < 1
+        }
+    }
+
+    /// `grådig`, `tilfeldig`, `billig`, `halvgrådig-0.5` / `halv-0.5`.
+    static func fra(_ tekst: String) -> Utrullingspolicy? {
+        switch tekst.lowercased() {
+        case "grådig", "gradig", "greedy": return .grådig
+        case "tilfeldig", "random": return .tilfeldig
+        case "billig", "cheap": return .billig
+        default:
+            let deler = tekst.split(separator: "-")
+            guard deler.count == 2,
+                  deler[0] == "halvgrådig" || deler[0] == "halvgradig" || deler[0] == "halv",
+                  let p = Double(deler[1].replacingOccurrences(of: ",", with: ".")) else { return nil }
+            return .halvgrådig(p: p)
+        }
+    }
+}
+
 /// Rask, grådig fullinformasjonspolicy brukt til utrullinger tidlig i runden:
 /// trekker trumf for budgiverlaget, spiller sikre vinnere, dekker makker og
 /// stikker billigst mulig. Ikke optimal, men god – og lik for alle seter, så
 /// sammenlikningen mellom kandidatkort blir rettferdig.
 enum GrådigSpiller {
     /// Spiller ut til `stoppVedStikkIgjen` stikk gjenstår (0 = hele veien),
-    /// og teller stikk per sete underveis.
-    static func spillUt(
+    /// og teller stikk per sete underveis. `policy` gjelder alle fire seter.
+    static func spillUt<R: RandomNumberGenerator>(
         _ start: Spilltilstand,
+        policy: Utrullingspolicy,
+        rng: inout R,
         stoppVedStikkIgjen: Int = 0,
         perSete: inout [Int]
     ) -> Spilltilstand {
@@ -207,7 +258,7 @@ enum GrådigSpiller {
         while t.hender[0] | t.hender[1] | t.hender[2] | t.hender[3] != 0 {
             let stikkIgjen = t.hender[t.leder].nonzeroBitCount + (t.pågående.isEmpty ? 0 : 1)
             if stikkIgjen <= stoppVedStikkIgjen { break }
-            let valg = velg(t)
+            let valg = velg(t, policy: policy, rng: &rng)
             if let vinnerSete = Spillregler.utfør(&t, indeks: valg) {
                 perSete[vinnerSete] += 1
             }
@@ -215,16 +266,99 @@ enum GrådigSpiller {
         return t
     }
 
-    /// Spiller runden ut – grådig fram til `eksaktFra` stikk gjenstår og
+    /// Grådig utrulling (den deterministiske referansen) – uendret oppførsel.
+    static func spillUt(
+        _ start: Spilltilstand,
+        stoppVedStikkIgjen: Int = 0,
+        perSete: inout [Int]
+    ) -> Spilltilstand {
+        var tom = SeededGenerator(seed: 1)
+        return spillUt(start, policy: .grådig, rng: &tom,
+                       stoppVedStikkIgjen: stoppVedStikkIgjen, perSete: &perSete)
+    }
+
+    /// Spiller runden ut – med `policy` fram til `eksaktFra` stikk gjenstår og
     /// eksakt derfra – og returnerer budgiverlagets stikk.
-    static func lagStikk(_ start: Spilltilstand, eksaktFra: Int = 0) -> Int {
+    static func lagStikk<R: RandomNumberGenerator>(
+        _ start: Spilltilstand, policy: Utrullingspolicy, rng: inout R, eksaktFra: Int = 0
+    ) -> Int {
         var perSete = [0, 0, 0, 0]
-        let rest = spillUt(start, stoppVedStikkIgjen: eksaktFra, perSete: &perSete)
+        let rest = spillUt(start, policy: policy, rng: &rng,
+                           stoppVedStikkIgjen: eksaktFra, perSete: &perSete)
         var stikk = eksaktFra > 0 ? Dobbeltdummy().løs(rest) : 0
         for s in 0..<4 where start.lagMaske & (1 << UInt8(s)) != 0 {
             stikk += perSete[s]
         }
         return stikk
+    }
+
+    static func lagStikk(_ start: Spilltilstand, eksaktFra: Int = 0) -> Int {
+        var tom = SeededGenerator(seed: 1)
+        return lagStikk(start, policy: .grådig, rng: &tom, eksaktFra: eksaktFra)
+    }
+
+    /// Trekkvalget for en gitt policy. Alle fire seter går gjennom denne.
+    static func velg<R: RandomNumberGenerator>(
+        _ t: Spilltilstand, policy: Utrullingspolicy, rng: inout R
+    ) -> Int {
+        switch policy {
+        case .grådig:
+            return velg(t)
+        case .billig:
+            return velgBillig(t)
+        case .tilfeldig:
+            return velgTilfeldig(t, rng: &rng)
+        case .halvgrådig(let p):
+            // 53 bits i [0,1) – nok oppløsning, og bare ett RNG-uttak.
+            let u = Double(rng.next() >> 11) * (1.0 / 9_007_199_254_740_992.0)
+            return u < p ? velg(t) : velgTilfeldig(t, rng: &rng)
+        }
+    }
+
+    /// Uniformt blant de lovlige kortene. Ingen sekvensreduksjon: den ville
+    /// vektet fargene skjevt, og poenget med denne armen er upartiskhet.
+    static func velgTilfeldig<R: RandomNumberGenerator>(_ t: Spilltilstand, rng: inout R) -> Int {
+        let m = Spillregler.lovligMaske(t)
+        let antall = m.nonzeroBitCount
+        if antall <= 1 { return Kortmaske.laveste(m) }
+        var hopp = Int(rng.next() % UInt64(antall))
+        var rest = m
+        while hopp > 0 {
+            rest &= rest - 1
+            hopp -= 1
+        }
+        return rest.trailingZeroBitCount
+    }
+
+    /// «Billig grådig»: bare kortspillets grunnregler. Ser aldri i andres
+    /// hender og har ingen utspillsplan.
+    static func velgBillig(_ t: Spilltilstand) -> Int {
+        let m = Spillregler.lovligMaske(t)
+        if m & (m - 1) == 0 { return Kortmaske.laveste(m) }
+        guard let ledet = t.pågående.first else {
+            return billigste(m, trumfFarge: t.trumfFarge)
+        }
+        var besteSete = ledet.sete
+        var besteIdx = ledet.indeks
+        for spill in t.pågående.dropFirst()
+        where Spillregler.slår(spill.indeks, besteIdx, trumfFarge: t.trumfFarge) {
+            besteSete = spill.sete
+            besteIdx = spill.indeks
+        }
+        let sete = Spillregler.aktivtSete(t)
+        let mittLag: UInt8 = t.lagMaske & (1 << UInt8(sete)) != 0 ? t.lagMaske : ~t.lagMaske & 0xF
+        // Eget lag leder stikket: legg billigst. Ellers: ta det billigst mulig.
+        if mittLag & (1 << UInt8(besteSete)) == 0 {
+            let vinnere = Kortmaske.indekser(m)
+                .filter { Spillregler.slår($0, besteIdx, trumfFarge: t.trumfFarge) }
+            if let billigstVinner = vinnere.min(by: {
+                Kortmaske.kostnad($0, trumfFarge: t.trumfFarge)
+                    < Kortmaske.kostnad($1, trumfFarge: t.trumfFarge)
+            }) {
+                return billigstVinner
+            }
+        }
+        return billigste(m, trumfFarge: t.trumfFarge)
     }
 
     static func velg(_ t: Spilltilstand) -> Int {
@@ -280,13 +414,6 @@ enum GrådigSpiller {
         return billigste(m, trumfFarge: t.trumfFarge)
     }
 
-    /// A/B-bryter for tiltaket «ikke led topptrumf inn i en høyere trumf».
-    /// Når den er på, ledes den LAVESTE trumfen med mindre laget faktisk
-    /// sitter med den høyeste utestående trumfen.
-    static var ledLavTrumfUtenMester = false
-    /// A/B-bryter: led sikre vinnere fra den lengste fargen, ikke den første.
-    static var sikrestVinnerFraLengste = false
-
     private static func velgUtspill(_ t: Spilltilstand, m: UInt64, sete: Int, fiender: [Int], union: UInt64) -> Int {
         // Budgiverlaget trekker trumf så lenge fiendene faktisk har trumf.
         if let trumf = t.trumfFarge, t.lagMaske & (1 << UInt8(sete)) != 0 {
@@ -294,21 +421,11 @@ enum GrådigSpiller {
             let fiendtligTrumf = fiender.reduce(UInt64(0)) { $0 | t.hender[$1] } & tm
             let minTrumf = m & tm
             if fiendtligTrumf != 0, minTrumf != 0 {
-                if ledLavTrumfUtenMester,
-                   Kortmaske.høyeste(minTrumf) < Kortmaske.høyeste(fiendtligTrumf) {
-                    // Toppkortet mitt taper uansett mot deres mester – trekk
-                    // trumfen billigst mulig i stedet for å fôre den.
-                    return Kortmaske.laveste(minTrumf)
-                }
                 return Kortmaske.høyeste(minTrumf)
             }
         }
         // Sikre vinnere: høyeste gjenværende kort i en farge fienden må følge
-        // (eller ikke kan trumfe). Med `sikrestVinnerFraLengste` velges den
-        // LENGSTE slike fargen i stedet for den første i fargerekkefølgen –
-        // da står flere oppfølgende vinnere klare i samme farge.
-        var besteSikre = -1
-        var besteLengde = -1
+        // (eller ikke kan trumfe).
         for farge in 0..<4 where farge != t.trumfFarge {
             let fm = Kortmaske.fargeMaske(farge)
             let mine = m & fm
@@ -320,15 +437,8 @@ enum GrådigSpiller {
                     || t.trumfFarge == nil
                     || t.hender[f] & Kortmaske.fargeMaske(t.trumfFarge!) == 0
             }
-            guard holdbar else { continue }
-            if !sikrestVinnerFraLengste { return topp }
-            let lengde = mine.nonzeroBitCount
-            if lengde > besteLengde {
-                besteLengde = lengde
-                besteSikre = topp
-            }
+            if holdbar { return topp }
         }
-        if besteSikre >= 0 { return besteSikre }
         return billigste(m, trumfFarge: t.trumfFarge)
     }
 
@@ -346,7 +456,7 @@ enum GrådigSpiller {
         return true
     }
 
-    private static func billigste(_ m: UInt64, trumfFarge: Int?) -> Int {
+    static func billigste(_ m: UInt64, trumfFarge: Int?) -> Int {
         Kortmaske.indekser(m).min {
             Kortmaske.kostnad($0, trumfFarge: trumfFarge) < Kortmaske.kostnad($1, trumfFarge: trumfFarge)
         }!

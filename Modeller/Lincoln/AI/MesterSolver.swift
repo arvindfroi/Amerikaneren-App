@@ -102,6 +102,11 @@ final class Dobbeltdummy {
     private struct Nøkkel: Hashable {
         let hender: SIMD4<UInt64>
         let leder: Int8
+        /// Hvilket lag som maksimerer. MesterAI holder én løser per verden og
+        /// har derfor konstant lagmaske, men ISMCTS gjenbruker løseren over
+        /// mange determiniseringer der makkeren – og dermed lagmasken – kan
+        /// være ulik. Uten lagmasken i nøkkelen ville de forgifte hverandre.
+        let lag: UInt8
     }
     private struct Grense {
         var nedre: Int8
@@ -110,20 +115,21 @@ final class Dobbeltdummy {
 
     private var tabell: [Nøkkel: Grense] = [:]
 
-    init() {
-        tabell.reserveCapacity(1 << 14)
+    init(kapasitet: Int = 1 << 14) {
+        tabell.reserveCapacity(kapasitet)
+    }
+
+    /// Hvor mange stillinger tabellen holder – ISMCTS gjenbruker én løser
+    /// gjennom hele søket og tømmer den når den vokser seg for stor.
+    var lagredeStillinger: Int { tabell.count }
+
+    func tøm() {
+        tabell.removeAll(keepingCapacity: true)
     }
 
     func løs(_ t: Spilltilstand) -> Int {
         let maks = t.hender[t.leder].nonzeroBitCount + (t.pågående.isEmpty ? 0 : 1)
         return løs(t, alfa: -1, beta: maks + 1)
-    }
-
-    /// Søk med et gitt alfa-beta-vindu. Verdien er eksakt når den ligger
-    /// strengt inne i vinduet, ellers er den en gyldig grense (fail-soft).
-    /// Brukes av diagnoseverktøyet til billige «holder verdien seg?»-tester.
-    func løsVindu(_ t: Spilltilstand, alfa: Int, beta: Int) -> Int {
-        løs(t, alfa: alfa, beta: beta)
     }
 
     private func løs(_ t: Spilltilstand, alfa: Int, beta: Int) -> Int {
@@ -137,7 +143,7 @@ final class Dobbeltdummy {
             maks = t.hender[t.leder].nonzeroBitCount
             if alfa >= maks { return maks }
             if beta <= 0 { return 0 }
-            let k = Nøkkel(hender: t.hender, leder: Int8(t.leder))
+            let k = Nøkkel(hender: t.hender, leder: Int8(t.leder), lag: t.lagMaske)
             nøkkel = k
             if let g = tabell[k] {
                 if Int(g.nedre) >= beta { return Int(g.nedre) }
@@ -280,13 +286,6 @@ enum GrådigSpiller {
         return billigste(m, trumfFarge: t.trumfFarge)
     }
 
-    /// A/B-bryter for tiltaket «ikke led topptrumf inn i en høyere trumf».
-    /// Når den er på, ledes den LAVESTE trumfen med mindre laget faktisk
-    /// sitter med den høyeste utestående trumfen.
-    static var ledLavTrumfUtenMester = false
-    /// A/B-bryter: led sikre vinnere fra den lengste fargen, ikke den første.
-    static var sikrestVinnerFraLengste = false
-
     private static func velgUtspill(_ t: Spilltilstand, m: UInt64, sete: Int, fiender: [Int], union: UInt64) -> Int {
         // Budgiverlaget trekker trumf så lenge fiendene faktisk har trumf.
         if let trumf = t.trumfFarge, t.lagMaske & (1 << UInt8(sete)) != 0 {
@@ -294,21 +293,11 @@ enum GrådigSpiller {
             let fiendtligTrumf = fiender.reduce(UInt64(0)) { $0 | t.hender[$1] } & tm
             let minTrumf = m & tm
             if fiendtligTrumf != 0, minTrumf != 0 {
-                if ledLavTrumfUtenMester,
-                   Kortmaske.høyeste(minTrumf) < Kortmaske.høyeste(fiendtligTrumf) {
-                    // Toppkortet mitt taper uansett mot deres mester – trekk
-                    // trumfen billigst mulig i stedet for å fôre den.
-                    return Kortmaske.laveste(minTrumf)
-                }
                 return Kortmaske.høyeste(minTrumf)
             }
         }
         // Sikre vinnere: høyeste gjenværende kort i en farge fienden må følge
-        // (eller ikke kan trumfe). Med `sikrestVinnerFraLengste` velges den
-        // LENGSTE slike fargen i stedet for den første i fargerekkefølgen –
-        // da står flere oppfølgende vinnere klare i samme farge.
-        var besteSikre = -1
-        var besteLengde = -1
+        // (eller ikke kan trumfe).
         for farge in 0..<4 where farge != t.trumfFarge {
             let fm = Kortmaske.fargeMaske(farge)
             let mine = m & fm
@@ -320,15 +309,8 @@ enum GrådigSpiller {
                     || t.trumfFarge == nil
                     || t.hender[f] & Kortmaske.fargeMaske(t.trumfFarge!) == 0
             }
-            guard holdbar else { continue }
-            if !sikrestVinnerFraLengste { return topp }
-            let lengde = mine.nonzeroBitCount
-            if lengde > besteLengde {
-                besteLengde = lengde
-                besteSikre = topp
-            }
+            if holdbar { return topp }
         }
-        if besteSikre >= 0 { return besteSikre }
         return billigste(m, trumfFarge: t.trumfFarge)
     }
 

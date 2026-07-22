@@ -1,0 +1,72 @@
+#### START 2026-07-22T13:10:45+02:00 ####
+#### 1) REPLIKERING 0,2 s PÅ FERSKE FRØ (n=1000) ####
+kjerner=22  arbeidere=6  logg=/home/arvind/ismcts/resultater.jsonl
+== Hode mot hode (replikering_0.2): ISMCTS mot MesterAI ==
+  ... 25 runder: +2.140 ± 2.344 (112 s)
+  ... 50 runder: +1.330 ± 1.496 (215 s)
+  ... 75 runder: +1.587 ± 1.092 (322 s)
+  ... 100 runder: +1.220 ± 0.929 (419 s)
+  ... 125 runder: +0.884 ± 0.755 (525 s)
+  ... 150 runder: +1.010 ± 0.665 (623 s)
+  ... 175 runder: +0.806 ± 0.579 (729 s)
+  ... 200 runder: +0.787 ± 0.550 (839 s)
+  ... 225 runder: +0.807 ± 0.539 (940 s)
+  ... 250 runder: +0.664 ± 0.524 (1045 s)
+  ... 275 runder: +0.669 ± 0.524 (1139 s)
+  ... 300 runder: +0.450 ± 0.496 (1243 s)
+  ... 325 runder: +0.394 ± 0.461 (1339 s)
+  ... 350 runder: +0.321 ± 0.451 (1432 s)
+  ... 375 runder: +0.493 ± 0.435 (1546 s)
+  ... 400 runder: +0.693 ± 0.428 (1659 s)
+  ... 425 runder: +0.669 ± 0.420 (1756 s)
+  ... 450 runder: +0.620 ± 0.398 (1856 s)
+  ... 475 runder: +0.536 ± 0.384 (1963 s)
+  ... 500 runder: +0.408 ± 0.372 (2067 s)
+  ... 525 runder: +0.370 ± 0.359 (2170 s)
+  ... 550 runder: +0.325 ± 0.348 (2266 s)
+  ... 575 runder: +0.454 ± 0.342 (2363 s)
+  ... 600 runder: +0.468 ± 0.331 (2468 s)
+  ... 625 runder: +0.425 ± 0.320 (2563 s)
+  ... 650 runder: +0.394 ± 0.314 (2655 s)
+  ... 675 runder: +0.495 ± 0.309 (2765 s)
+  ... 700 runder: +0.556 ± 0.303 (2867 s)
+  ... 725 runder: +0.604 ± 0.299 (2953 s)
+  ... 750 runder: +0.552 ± 0.297 (3048 s)
+  ... 775 runder: +0.578 ± 0.291 (3149 s)
+  ... 800 runder: +0.571 ± 0.283 (3240 s)
+  ... 825 runder: +0.602 ± 0.278 (3337 s)
+  ... 850 runder: +0.534 ± 0.272 (3430 s)
+  ... 875 runder: +0.530 ± 0.265 (3522 s)
+  ... 900 runder: +0.513 ± 0.258 (3612 s)
+  ... 925 runder: +0.458 ± 0.253 (3700 s)
+  ... 950 runder: +0.444 ± 0.248 (3790 s)
+  ... 975 runder: +0.447 ± 0.247 (3881 s)
+  ... 1000 runder: +0.438 ± 0.241 (3974 s)
+  → ISMCTS − MesterAI: +0.438 ± 0.241 poeng per lagrunde (n=1000, 1.8 SE, 3974 s)
+     ISMCTS 5390 iterasjoner/trekk, PIMC 485 verdener/trekk, ulovlige trekk: 0
+#### 2) ITERASJONSKURVE ####
+kjerner=22  arbeidere=6  logg=/home/arvind/ismcts/resultater.jsonl
+== Iterasjonskurve: ISMCTS mot MesterAI (0.2 s) på identiske utdelinger ==
+     200 iterasjoner: +1.156 ± 0.740 poeng per lagrunde (n=80, 1.6 SE)
+    1000 iterasjoner: -0.400 ± 0.556 poeng per lagrunde (n=80, -0.7 SE)
+    5000 iterasjoner: +1.319 ± 0.887 poeng per lagrunde (n=80, 1.5 SE)
+   20000 iterasjoner: +1.450 ± 1.046 poeng per lagrunde (n=80, 1.4 SE)
+#### 3) TREETS OVERTAKELSE ####
+kjerner=22  arbeidere=6  logg=/home/arvind/ismcts/resultater.jsonl
+== Treets overtakelse: hvor mye av runden treet selv bestemmer ==
+     200 iterasjoner: tredybde 3.16 beslutninger (2.17 uten ekspansjon, maks 12) = 17.3 % av runden, 0.79 stikk framover
+      per stikk (andel tre-beslutninger): s1:88% s2:47% s3:30% s4:20% s5:16% s6:13% s7:11% s8:10% s9:9% s10:8% s11:7% s12:3%
+    1000 iterasjoner: tredybde 3.96 beslutninger (2.99 uten ekspansjon, maks 12) = 21.9 % av runden, 0.99 stikk framover
+      per stikk (andel tre-beslutninger): s1:95% s2:58% s3:36% s4:26% s5:19% s6:16% s7:14% s8:12% s9:11% s10:10% s11:9% s12:6%
+    5000 iterasjoner: tredybde 4.91 beslutninger (3.97 uten ekspansjon, maks 15) = 27.4 % av runden, 1.23 stikk framover
+      per stikk (andel tre-beslutninger): s1:98% s2:69% s3:44% s4:30% s5:24% s6:20% s7:18% s8:15% s9:14% s10:13% s11:12% s12:9%
+   20000 iterasjoner: tredybde 5.75 beslutninger (4.83 uten ekspansjon, maks 16) = 31.2 % av runden, 1.44 stikk framover
+      per stikk (andel tre-beslutninger): s1:99% s2:78% s3:51% s4:37% s5:29% s6:24% s7:19% s8:18% s9:16% s10:15% s11:14% s12:11%
+#### 4) HOVEDMÅLING 0,45 s ####
+kjerner=22  arbeidere=6  logg=/home/arvind/ismcts/resultater.jsonl
+== Hode mot hode (hoved_0.45): ISMCTS mot MesterAI ==
+  ... 25 runder: +1.300 ± 0.805 (195 s)
+  ... 50 runder: +1.070 ± 0.551 (371 s)
+  ... 75 runder: +1.373 ± 0.874 (530 s)
+  ... 100 runder: +0.705 ± 0.736 (694 s)
+  ... 125 runder: +0.680 ± 0.612 (885 s)

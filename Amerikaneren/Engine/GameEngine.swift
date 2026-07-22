@@ -134,6 +134,16 @@ final class GameEngine {
                    førsteBudgiver: (dealer + 1) % n)
     }
 
+    /// Setter poengstillingen direkte – for trening/simulering som skal
+    /// dekke hele spekteret av partisituasjoner (desperasjon, trygghet,
+    /// målstrek) uten å spille seg dit. Kun mellom runder.
+    func settPoengstilling(_ poeng: [Int]) {
+        precondition(phase == .venterPåStart || phase == .rundeFerdig)
+        precondition(poeng.count == rules.antallSpillere)
+        precondition(poeng.allSatisfy { $0 < rules.målPoeng })
+        scores = poeng
+    }
+
     /// Starter en runde med en forhåndsbestemt utdeling – brukes av tester
     /// og av avspilling av opptak (`Rundeopptak.spillAv`).
     func startRunde(hender: [[Card]], talon nyTalon: [Card], førsteBudgiver: Int) {
@@ -142,6 +152,13 @@ final class GameEngine {
         precondition(hender.allSatisfy { $0.count == rules.kortPerSpiller })
         precondition(nyTalon.count == rules.antallByttekort)
         let n = rules.antallSpillere
+        // Konvensjonen gjennom hele motoren er førsteBudgiver = giver + 1.
+        // Sett giveren tilsvarende, slik at en motor som bygges opp fra en
+        // forhåndsbestemt utdeling (avspilling/tidsreise) roterer giveren
+        // riktig videre til neste runde. For den vanlige flyten (seedet
+        // utdeling via `startRunde(seed:)`) er dette identisk med verdien
+        // giveren allerede har.
+        dealer = (førsteBudgiver - 1 + n) % n
         hands = hender
         talon = nyTalon
         utdelteHender = hender

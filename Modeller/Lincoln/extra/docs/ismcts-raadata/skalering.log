@@ -1,0 +1,6 @@
+#### SKALERING START 2026-07-22T14:43:23+02:00 ####
+kjerner=22  arbeidere=8  logg=/home/arvind/ismcts/resultater.jsonl
+== Skalering: ISMCTS(N) mot ISMCTS(200) på identiske utdelinger ==
+    1000 mot 200: +1.070 ± 0.317 poeng per lagrunde (n=600, 3.4 SE, 1413 s)
+Terminated                 ./.build-skal/release/ismcts skalering runder=600 basis=200 iter=1000,5000,20000 arbeidere=8
+#### SKALERING FERDIG 2026-07-22T15:39:10+02:00 ####
