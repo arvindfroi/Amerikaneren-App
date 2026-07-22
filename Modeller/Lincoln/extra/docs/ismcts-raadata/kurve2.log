@@ -1,0 +1,3 @@
+#### KURVE2 START 2026-07-22T15:09:56+02:00 ####
+kjerner=22  arbeidere=12  logg=/home/arvind/ismcts/resultater.jsonl
+== Iterasjonskurve: ISMCTS mot MesterAI med faste verdenstak (klokkefri, sluttspillstak 600) på identiske utdelinger ==
