@@ -770,9 +770,9 @@ if kommando == "partiduel" {
     // trekk. Vinner sete 0 oftere enn 25 %?
     let n = CommandLine.arguments.count > 2 ? Int(CommandLine.arguments[2]) ?? 12 : 12
     let batch = CommandLine.arguments.count > 3 ? Int(CommandLine.arguments[3]) ?? 6 : 6
-    let base = MesterKonfig()
+    var base = MesterKonfig(); base.tidsbudsjett = 0.12
     var ponder = MesterKonfig()
-    ponder.maksVerdener = 48; ponder.eksaktStikkGrense = 8; ponder.minVerdener = 14
+    ponder.maksVerdener = 48; ponder.eksaktStikkGrense = 8; ponder.minVerdener = 14; ponder.tidsbudsjett = 0.30
 
     func spillParti(seed: UInt64, medPondering: Bool) -> Int? {
         MesterAI.frøBasis = seed &* 0x9E3779B97F4A7C15
