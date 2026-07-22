@@ -19,6 +19,10 @@ struct MesterKonfig {
     /// Vekt samplede verdener mot budhistorikken (pass = svak hånd,
     /// høyt bud = sterk hånd).
     var budvekting = true
+    /// Nett-drevet spillhistorikk-vekting (roadmap #1). Vekter samplede verdener
+    /// med hvor sannsynlige motstandernes faktiske trekk var, via nettets
+    /// spillhode som motstandsmodell. Av som standard til den er målt inn.
+    var spillvekting = false
     /// Matchbevisst budgivning: ligger man langt bak sent i partiet, er
     /// varians en venn (våg mer); leder man, er trygghet verdt mer enn
     /// marginale bud. Virker i begge partiformater.
@@ -58,6 +62,9 @@ final class MesterAI {
 
     /// Overstyring for benchmarks/AB-testing – brukes av AIPlayer om satt.
     static var overstyrKonfig: MesterKonfig?
+    /// Per-sete-overstyring (head-to-head-duell: én variant mot frossen MesterAI).
+    /// Har forrang over `overstyrKonfig` for setene som er satt.
+    static var overstyrKonfigPerSete: [Int: MesterKonfig] = [:]
 
     init(sete: Int, konfig: MesterKonfig = MesterKonfig(), seed: UInt64? = nil) {
         self.sete = sete

@@ -211,6 +211,48 @@ if kommando == "styrke" || kommando == "alle" {
     kjør("MesterAI  (president) ", sete0: .president)
 }
 
+if kommando == "duell" {
+    // Head-to-head: variant-MesterAI i sete 0 mot frossen MesterAI rundt bordet,
+    // duplikat-scoret mot en identisk runde der sete 0 også er frossen MesterAI.
+    // Isolerer variantens effekt fra kortflaks. Moderat konfig for fart.
+    let n = UInt64(CommandLine.arguments.count > 2 ? UInt64(CommandLine.arguments[2]) ?? 60 : 60)
+    let mode = CommandLine.arguments.count > 3 ? CommandLine.arguments[3] : "null"
+    var base = MesterKonfig()
+    base.tidsbudsjett = 0.12; base.maksVerdener = 16; base.verdenerVedBud = 20; base.eksaktStikkGrense = 6
+    var variant = base
+    switch mode {
+    case "svak": variant.maksVerdener = 2; variant.minVerdener = 1; variant.eksaktStikkGrense = 2; variant.verdenerVedBud = 4
+    case "spillvekting": variant.spillvekting = true
+    default: break // "null" → variant == base, forventet diff ≈ 0 (sanity)
+    }
+
+    func poengSete0(seed: UInt64, variantSete0: Bool) -> Int? {
+        MesterAI.overstyrKonfig = base
+        MesterAI.overstyrKonfigPerSete = variantSete0 ? [0: variant] : [:]
+        let spillere: [Int: AIPlayer] = [
+            0: AIPlayer(seat: 0, difficulty: .president, personality: .balansert),
+            1: AIPlayer(seat: 1, difficulty: .president, personality: .balansert),
+            2: AIPlayer(seat: 2, difficulty: .president, personality: .balansert),
+            3: AIPlayer(seat: 3, difficulty: .president, personality: .balansert),
+        ]
+        guard let runde = spillRunde(seed: seed, spillere: spillere) else { return nil }
+        return runde.poengEndring[0]
+    }
+
+    var sum = 0.0, sum2 = 0.0, m = 0
+    let start = Date()
+    for seed in 1...n {
+        guard let a = poengSete0(seed: seed, variantSete0: true),
+              let b = poengSete0(seed: seed, variantSete0: false) else { continue }
+        let d = Double(a - b); sum += d; sum2 += d * d; m += 1
+    }
+    let mean = m > 0 ? sum / Double(m) : 0
+    let se = m > 0 ? ((sum2 / Double(m) - mean * mean).squareRoot() / Double(m).squareRoot()) : 0
+    print(String(format: "== Duell (%@): variant sete 0 vs frossen MesterAI, n=%d ==", mode, m))
+    print(String(format: "  diff = %+.3f ± %.3f poeng/runde (95%% CI)   %.0f s",
+                 mean, 1.96 * se, Date().timeIntervalSince(start)))
+}
+
 if kommando == "parti" {
     // Hele partier til 52: vinner sete 0 oftere enn 25 %?
     let n = CommandLine.arguments.count > 2 ? Int(CommandLine.arguments[2]) ?? 40 : 40
