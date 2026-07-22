@@ -175,6 +175,10 @@ case "evolusjon":
     if let n = flaggVerdi("ankerRunder", argv).flatMap({ Int($0) }) { evo.ankerRunder = n }
     if let n = flaggVerdi("generasjoner", argv).flatMap({ Int($0) }) { evo.maksGenerasjoner = n }
     Evolusjon(innstillinger: evo).kjør()
+case "eksporter-runder":
+    // Paritetseksport for OpenSpiel-porten: N runder med tilfeldige lovlige
+    // trekk som JSONL på stdout.  Bruk: eksporter-runder <antall> <frø>
+    EksporterRunder.kjør(argv: argv)
 case nil, "hjelp", "--help", "-h":
     print(hjelpetekst)
 default:
