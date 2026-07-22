@@ -762,3 +762,67 @@ if kommando == "optimalitet" {
             Double(feilNivå[nivå]) / Double(beslNivå[nivå]), beslNivå[nivå]))
     }
 }
+
+if kommando == "partiduel" {
+    // Parti til 100: pondering-MesterAI i sete 0 mot frossen MesterAI rundt
+    // bordet. Pondering = mer effektiv regnetid (flere verdener + dypere
+    // eksakt, gjort mulig av persistent TT) + ponder() under motstandernes
+    // trekk. Vinner sete 0 oftere enn 25 %?
+    let n = CommandLine.arguments.count > 2 ? Int(CommandLine.arguments[2]) ?? 12 : 12
+    let batch = CommandLine.arguments.count > 3 ? Int(CommandLine.arguments[3]) ?? 6 : 6
+    let base = MesterKonfig()
+    var ponder = MesterKonfig()
+    ponder.maksVerdener = 48; ponder.eksaktStikkGrense = 8; ponder.minVerdener = 14
+
+    func spillParti(seed: UInt64, medPondering: Bool) -> Int? {
+        MesterAI.frøBasis = seed &* 0x9E3779B97F4A7C15
+        MesterAI.overstyrKonfig = base
+        MesterAI.overstyrKonfigPerSete = medPondering ? [0: ponder] : [:]
+        let engine = GameEngine()
+        let spillere: [Int: AIPlayer] = [
+            0: AIPlayer(seat: 0, difficulty: .president, personality: .balansert),
+            1: AIPlayer(seat: 1, difficulty: .president, personality: .balansert),
+            2: AIPlayer(seat: 2, difficulty: .president, personality: .balansert),
+            3: AIPlayer(seat: 3, difficulty: .president, personality: .balansert),
+        ]
+        engine.startRunde(seed: seed)
+        var vakt = 0
+        while engine.phase != .spillFerdig {
+            vakt += 1; if vakt > 8000 { return nil }
+            switch engine.phase {
+            case .budrunde:
+                let s = engine.aktivBudgiver
+                guard engine.giBud(seat: s, action: spillere[s]!.velgBud(engine: engine)) else { return nil }
+            case .byttekort:
+                let s = engine.budgiverSeat!
+                guard engine.kastByttekort(spillere[s]!.velgByttekort(engine: engine), seat: s) else { return nil }
+            case .velgTrumf:
+                let s = engine.budgiverSeat!
+                guard let (suit, ønsket) = spillere[s]!.velgTrumfOgMakker(engine: engine),
+                      engine.velgTrumf(suit: suit, ønsket: ønsket) else { return nil }
+            case .spill:
+                let s = engine.aktivSpiller
+                if medPondering && s != 0 { spillere[0]!.ponder(engine: engine, iterasjoner: batch) }
+                guard let kort = spillere[s]!.velgKort(engine: engine),
+                      engine.spill(kort: kort, seat: s) else { return nil }
+            case .rundeFerdig:
+                engine.nesteRunde()
+            default: return nil
+            }
+        }
+        return engine.vinnerSeat
+    }
+
+    for (navn, pondering) in [("frossen (baseline)", false), ("pondering sete 0 ", true)] {
+        var seiere = 0, fullførte = 0
+        let start = Date()
+        for seed in 1...UInt64(n) {
+            guard let vinner = spillParti(seed: seed &* 31 &+ 7, medPondering: pondering) else { continue }
+            fullførte += 1
+            if vinner == 0 { seiere += 1 }
+        }
+        MesterAI.overstyrKonfig = nil; MesterAI.overstyrKonfigPerSete = [:]; MesterAI.frøBasis = nil
+        print(String(format: "  %@ i sete 0: vant %d av %d partier til 100 (%.0f %%)  [25 %% ved likt spill]  %.0f s",
+                     navn, seiere, fullførte, Double(seiere) / Double(max(1, fullførte)) * 100, Date().timeIntervalSince(start)))
+    }
+}

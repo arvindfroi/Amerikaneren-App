@@ -23,6 +23,12 @@ struct AIPlayer {
             : nil
     }
 
+    /// Pondering: la søkeboten forhåndsregne (varme TT-en) mens det ikke er
+    /// setets tur. No-op for ikke-President-nivåer.
+    func ponder(engine: GameEngine, iterasjoner: Int) {
+        mester?.ponder(engine: engine, iterasjoner: iterasjoner)
+    }
+
     // MARK: - Håndvurdering
 
     /// Estimerer antall stikk med gitt farge som trumf.

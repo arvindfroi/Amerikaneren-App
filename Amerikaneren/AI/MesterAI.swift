@@ -391,6 +391,30 @@ final class MesterAI {
         return kandidater[beste]
     }
 
+    // MARK: - Pondering (sjakkens «tenk på motstanderens tid»)
+
+    /// Kalles mens det IKKE er setets tur: sampler verdener for inneværende
+    /// rundetilstand og løser sluttspillene inn i den persistente TT-en, så
+    /// setets egne trekk senere er billigere (varm hash). Ingen sideeffekt på
+    /// beslutningen – kun forhåndsregning.
+    func ponder(engine: GameEngine, iterasjoner: Int) {
+        guard engine.phase == .spill,
+              let innsikt = Spillinnsikt(engine: engine, sete: sete) else { return }
+        if innsikt.trickNummer < sisteTrickNr { løser.tøm() }
+        sisteTrickNr = innsikt.trickNummer
+        for _ in 0..<iterasjoner {
+            guard let verden = innsikt.sampleVerden(rng: &rng) else { break }
+            var t = Spilltilstand(
+                hender: verden.hender, leder: innsikt.leder, pågående: innsikt.pågående,
+                trumfFarge: innsikt.trumfFarge, lagMaske: verden.lagMaske,
+                budgiver: innsikt.budgiver, pliktkort: innsikt.pliktkort,
+                førsteStikk: innsikt.trickNummer == 0)
+            var perSete = [0, 0, 0, 0]
+            t = GrådigSpiller.spillUt(t, stoppVedStikkIgjen: konfig.eksaktStikkGrense, perSete: &perSete)
+            _ = løser.løs(t)   // varmer TT-en
+        }
+    }
+
     // MARK: - Kortspill
 
     func velgKort(engine: GameEngine) -> Card? {
