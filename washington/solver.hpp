@@ -6,6 +6,7 @@
 #include "game.hpp"
 #include <unordered_map>
 #include <array>
+#include <immintrin.h>
 namespace wa {
 
 struct SState {
@@ -72,6 +73,24 @@ struct DDKeyHash { size_t operator()(const DDKey&k)const{
     u64 x=1469598103934665603ull; for(u64 v:{k.h0,k.h1,k.h2,k.h3,(u64)k.leader}){x^=v;x*=1099511628211ull;} return (size_t)x; } };
 struct DDBound { int8_t lo, hi; };
 
+// Relativ-rang-kanonisering: bare kortenes innbyrdes rekkefølge i hver farge
+// betyr noe for dobbeltdummy-verdien, ikke absolutt valør. Vi komprimerer hver
+// farges kort-i-spill til posisjoner 0..k-1 (pext), så mange absolutte
+// stillinger deler samme TT-nøkkel. Fargeidentitet (trumf) bevares.
+static inline DDKey canonKey(const SState& t){
+    u64 c[4]={0,0,0,0};
+    u64 uni=t.hands[0]|t.hands[1]|t.hands[2]|t.hands[3];
+    for(int s=0;s<4;s++){
+        u64 sm=suitMask(s);
+        u64 u=(uni & sm) >> (s*13);
+        for(int p=0;p<4;p++){
+            u64 h=(t.hands[p] & sm) >> (s*13);
+            c[p] |= _pext_u64(h,u) << (s*13);
+        }
+    }
+    return DDKey{c[0],c[1],c[2],c[3],t.leader};
+}
+
 struct Dobbeltdummy {
     std::unordered_map<DDKey,DDBound,DDKeyHash> tt;
     Dobbeltdummy(){ tt.reserve(1<<14); }
@@ -90,7 +109,7 @@ struct Dobbeltdummy {
             maks=popcount(t.hands[t.leader]);
             if(alfa>=maks) return maks;
             if(beta<=0) return 0;
-            key=DDKey{t.hands[0],t.hands[1],t.hands[2],t.hands[3],t.leader}; haveKey=true;
+            key=canonKey(t); haveKey=true;
             auto it=tt.find(key);
             if(it!=tt.end()){ DDBound g=it->second;
                 if(g.lo>=beta) return g.lo;
