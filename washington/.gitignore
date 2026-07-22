@@ -3,3 +3,4 @@ solver_test
 harness
 *.o
 *.out
+run*.txt
