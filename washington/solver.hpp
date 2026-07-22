@@ -71,7 +71,7 @@ struct DDKey { u64 h0,h1,h2,h3; int leader;
     bool operator==(const DDKey&o)const{return h0==o.h0&&h1==o.h1&&h2==o.h2&&h3==o.h3&&leader==o.leader;} };
 struct DDKeyHash { size_t operator()(const DDKey&k)const{
     u64 x=1469598103934665603ull; for(u64 v:{k.h0,k.h1,k.h2,k.h3,(u64)k.leader}){x^=v;x*=1099511628211ull;} return (size_t)x; } };
-struct DDBound { int8_t lo, hi; };
+struct DDBound { int8_t lo, hi; int8_t best = -1; };
 
 // Relativ-rang-kanonisering: bare kortenes innbyrdes rekkefølge i hver farge
 // betyr noe for dobbeltdummy-verdien, ikke absolutt valør. Vi komprimerer hver
@@ -95,16 +95,24 @@ struct Dobbeltdummy {
     std::unordered_map<DDKey,DDBound,DDKeyHash> tt;
     Dobbeltdummy(){ tt.reserve(1<<14); }
 
+    // MTD-f: konverger mot verdien via gjentatte null-vindu-søk. TT-en
+    // (medlem) persisterer mellom iterasjonene og strammer grensene raskt.
     int solve(const SState& t){
         int maks = popcount(t.hands[t.leader]) + (t.trCount? 1:0);
-        return rec(t, -1, maks+1);
+        int g = maks/2, lower=-1, upper=maks+1;
+        while(lower < upper){
+            int beta = (g==lower)? g+1 : g;
+            g = rec(t, beta-1, beta);
+            if(g < beta) upper=g; else lower=g;
+        }
+        return g;
     }
 
     int rec(const SState& t,int alfa,int beta){
         u64 uni=t.hands[0]|t.hands[1]|t.hands[2]|t.hands[3];
         if(uni==0) return 0;
         bool atStart=(t.trCount==0);
-        int maks=0; DDKey key; bool haveKey=false;
+        int maks=0; DDKey key; bool haveKey=false; int ttBest=-1;
         if(atStart){
             maks=popcount(t.hands[t.leader]);
             if(alfa>=maks) return maks;
@@ -116,27 +124,32 @@ struct Dobbeltdummy {
                 if(g.hi<=alfa) return g.hi;
                 if(g.lo>alfa) alfa=g.lo;
                 if(g.hi<beta) beta=g.hi;
+                ttBest=g.best;
             }
         }
         int seat=t.active();
         bool erMaks = t.teamMask & (1<<seat);
         u64 unionMedStikk=uni; for(int i=0;i<t.trCount;i++) unionMedStikk|=bit(t.trCard[i]);
         int mv[13], n; reducedMoves(legalMask(t), unionMedStikk, mv, n);
+        // Trekkordning: prøv TT-ens beste trekk først (trygt – hoppes over hvis
+        // det ikke er lovlig i denne stillingen, f.eks. ved kanonisk deling).
+        if(ttBest>=0) for(int i=0;i<n;i++) if(mv[i]==ttBest){ std::swap(mv[0],mv[i]); break; }
 
-        int best = erMaks? -1 : 999;
+        int best = erMaks? -1 : 999, bestMove = mv[0];
         int a=alfa,b=beta, aOrig=alfa;
         for(int i=0;i<n;i++){
             SState c=t; int winner=applyMove(c,mv[i]); int val;
             if(winner>=0){ int bonus=(t.teamMask&(1<<winner))?1:0; val=bonus+rec(c,a-bonus,b-bonus); }
             else val=rec(c,a,b);
-            if(erMaks){ if(val>best)best=val; if(best>a)a=best; if(best>=b)break; }
-            else      { if(val<best)best=val; if(best<b)b=best; if(best<=a)break; }
+            if(erMaks){ if(val>best){best=val;bestMove=mv[i];} if(best>a)a=best; if(best>=b)break; }
+            else      { if(val<best){best=val;bestMove=mv[i];} if(best<b)b=best; if(best<=a)break; }
         }
         if(haveKey){
-            DDBound g; auto it=tt.find(key); g = it!=tt.end()? it->second : DDBound{0,(int8_t)maks};
+            DDBound g; auto it=tt.find(key); g = it!=tt.end()? it->second : DDBound{0,(int8_t)maks,-1};
             if(best<=aOrig) g.hi=std::min<int>(g.hi,best);
             else if(best>=beta) g.lo=std::max<int>(g.lo,best);
             else { g.lo=(int8_t)best; g.hi=(int8_t)best; }
+            g.best=(int8_t)bestMove;
             tt[key]=g;
         }
         return best;
