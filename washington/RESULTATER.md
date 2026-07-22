@@ -48,10 +48,19 @@ optimale.
 - **Kortspill (sluttspill, 1920 beslutninger over 60 runder): 97,4 %
   dobbeltdummy-optimale, snittfeil 0,028 stikk/beslutning.** Near-perfekt.
 
-Dette forklarer direkte hvorfor ingen kortspill-lever bet på – marginen finnes
-nesten ikke. Forbehold: måler sluttspillet (8 av 12 stikk); åpningen (12–9 kort,
-der grådig utrulling brukes) er ikke målt og kan ha mer margin. Dobbeltdummy er
-en øvre grense (perfekt info); full garanti krever utnyttbarhet (best-response).
+Forbehold: dobbeltdummy er en øvre grense (perfekt info); full garanti krever
+utnyttbarhet (best-response).
+
+### Per kort-igjen: åpningen ER svakere (grådig-flaskehalsen)
+Nedbrutt per nivå (640 beslutninger): sluttspillet (1–5 kort) er 100 %
+optimalt, men **åpningen faller: 9 kort = 87,5 %, 10 kort = 92,2 %**
+(snittfeil ~0,11–0,14 stikk). Over eksakt-grensen (6) styrer grådigpolicyen,
+og der er MesterAI målbart suboptimal.
+
+**Konsekvens:** å fikse åpnings-*stikk* ga ~0 poeng (kontrakt-scoring), MEN
+grådigpolicyen brukes også til å *estimere bud* – så skjevheten rammer trolig
+**budgivningen**, der feil koster ekte poeng (±2n). Neste: par-kontrakt-analyse
+av budgivningen + bedre utrullingspolicy (nett-guidet) som løfter begge.
 
 ## Ærlig delkonklusjon
 Etter å ha målt bud (paritet – MesterAI har det alt), dypere eksakt (0), grov
