@@ -13,6 +13,8 @@ Kommandoer:
              --runder N     fast antall runder (ellers først til målpoeng)
              --mål N        målpoeng (standard 100)
              --tid SEK      MesterAI-tidsbudsjett per trekk (standard 0.2)
+             --tråder N     arbeidere i MesterAI-søket (standard kjerner−1;
+                            1 = den entrådede oppførselen, for A/B)
              --nivåer A,B,C,D  nivå per sete: lett|middels|vanskelig|president
                             (standard: president,vanskelig,vanskelig,vanskelig)
 
@@ -58,6 +60,7 @@ private func lesInnstillinger(_ argv: [String]) -> Kampsimulator.Innstillinger {
     inn.maksRunder = flaggVerdi("runder", argv).flatMap { Int($0) }
     if let mål = flaggVerdi("mål", argv).flatMap({ Int($0) }) { inn.målPoeng = mål }
     if let tid = flaggVerdi("tid", argv).flatMap({ Double($0) }) { inn.tidsbudsjett = tid }
+    inn.tråder = flaggVerdi("tråder", argv).flatMap { Int($0) }
     if let tekst = flaggVerdi("nivåer", argv) {
         let nivåer = tekst.components(separatedBy: ",").compactMap(nivå(fra:))
         if nivåer.count == 4 {

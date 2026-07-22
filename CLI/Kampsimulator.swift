@@ -15,6 +15,10 @@ struct Kampsimulator {
         var målPoeng = 100
         /// Tidsbudsjett per MesterAI-kortvalg (sekunder).
         var tidsbudsjett = 0.2
+        /// Antall tråder MesterAI deler verdensutvalget på. nil = automatisk
+        /// (kjerner − 1); 1 gir den entrådede oppførselen fra før
+        /// parallelliseringen, og er basislinjen i A/B-målinger.
+        var tråder: Int?
         var utskrift = true
     }
 
@@ -35,11 +39,13 @@ struct Kampsimulator {
 
     /// MesterAI-konfigurasjon skalert til CLI-ens tidsbudsjett: ved korte
     /// budsjetter (CI) reduseres antall samplede verdener tilsvarende.
-    static func mesterKonfig(tidsbudsjett: Double) -> MesterKonfig {
-        var k = MesterKonfig.automatisk()
+    static func mesterKonfig(tidsbudsjett: Double, tråder: Int? = nil) -> MesterKonfig {
+        var k = MesterKonfig.automatisk(tråder: tråder)
         k.tidsbudsjett = tidsbudsjett
         if tidsbudsjett <= 0.1 {
-            k.maksVerdener = 12
+            // Verdenstaket skaleres med arbeiderne, ellers ville taket – og
+            // ikke tiden – bli det bindende for parallellsøket.
+            k.maksVerdener = 12 * k.trådtall
             k.minVerdener = 4
             k.verdenerVedBud = 20
             k.verdenerVedBytte = 10
@@ -56,7 +62,7 @@ struct Kampsimulator {
         rules.maksRunder = inn.maksRunder
         let engine = GameEngine(rules: rules)
 
-        let konfig = Self.mesterKonfig(tidsbudsjett: inn.tidsbudsjett)
+        let konfig = Self.mesterKonfig(tidsbudsjett: inn.tidsbudsjett, tråder: inn.tråder)
         // Heuristikk-setene (via AIPlayer) skal bruke samme budsjett om
         // noen av dem er President uten eget frø.
         MesterAI.overstyrKonfig = konfig

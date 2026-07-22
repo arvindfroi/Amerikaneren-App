@@ -629,3 +629,31 @@ if kommando == "format" {
     kjørFormat("20 runder, uten        ", maksRunder: 20, matchbevisst: false)
     MesterAI.overstyrKonfig = nil
 }
+
+if kommando == "parallell" {
+    // Måleprogrammet for parallelliseringen av verdensevalueringen.
+    let under = CommandLine.arguments.count > 2 ? CommandLine.arguments[2] : "hjelp"
+    func tall(_ i: Int, _ standard: Int) -> Int {
+        CommandLine.arguments.count > i ? Int(CommandLine.arguments[i]) ?? standard : standard
+    }
+    func desimal(_ i: Int, _ standard: Double) -> Double {
+        CommandLine.arguments.count > i ? Double(CommandLine.arguments[i]) ?? standard : standard
+    }
+    let kjerner = ProcessInfo.processInfo.activeProcessorCount
+    switch under {
+    case "gjennomstrømning":
+        parGjennomstrømning(runder: tall(3, 3), tid: desimal(4, 0.45), tråder: tall(5, kjerner - 1))
+    case "bredde":
+        parBredde(runder: tall(3, 120), verdenstall: [36, 120, 400, 1200], tråder: tall(4, kjerner - 1))
+    case "ab":
+        parStyrkeAB(runder: tall(3, 300), tid: desimal(4, 0.45),
+                    tråder: tall(5, kjerner - 1), fastVerdenstall: nil)
+    case "ab-fast":
+        parStyrkeAB(runder: tall(3, 300), tid: desimal(4, 0.45),
+                    tråder: tall(5, kjerner - 1), fastVerdenstall: tall(6, 36))
+    case "h2h":
+        parHodeMotHode(runder: tall(3, 200), tid: desimal(4, 0.45), tråder: tall(5, kjerner - 1))
+    default:
+        print("harness parallell gjennomstrømning|bredde|ab|ab-fast|h2h [...]")
+    }
+}
