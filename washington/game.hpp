@@ -59,6 +59,7 @@ struct Round {
     int trickNum = 0;
     u64 played = 0;
     bool requestedPlayed = false;
+    std::vector<std::pair<int,int>> playLog; // (seat,card) i spillrekkefølge
 
     std::mt19937_64 rng;
 
@@ -73,7 +74,7 @@ struct Round {
         for(int s=0;s<4;s++) for(int k=0;k<12;k++) hands[s]|=bit(d[idx++]);
         for(int k=0;k<4;k++) talong|=bit(d[idx++]);
         phase=P_BID; activeBidder=(dealer+1)%4; passed=0; highBid=BID_PASS; highSeat=-1; bids.clear();
-        tricksWon={}; scoreDelta={}; discard=0; trick.clear(); trickNum=0; played=0;
+        tricksWon={}; scoreDelta={}; discard=0; trick.clear(); trickNum=0; played=0; playLog.clear();
         bidWinner=trump=askedCard=partner=-1; isAmerikaner=isSolo=false; requestedPlayed=false; leader=0;
     }
 
@@ -164,6 +165,7 @@ struct Round {
     void applyPlay(int seat, int card){
         assert(legalPlay(seat)&bit(card));
         hands[seat]&=~bit(card); trick.push_back({seat,card}); played|=bit(card);
+        playLog.push_back({seat,card});
         if(card==askedCard) requestedPlayed=true;
         if((int)trick.size()==4){
             int bestSeat=trick[0].first, bestCard=trick[0].second;
