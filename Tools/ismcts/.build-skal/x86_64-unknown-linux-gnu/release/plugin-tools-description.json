@@ -1,0 +1,429 @@
+{
+  "builtTestProducts" : [
+
+  ],
+  "copyCommands" : {
+
+  },
+  "explicitTargetDependencyImportCheckingMode" : {
+    "none" : {
+
+    }
+  },
+  "generatedSourceTargetSet" : [
+
+  ],
+  "pluginDescriptions" : [
+
+  ],
+  "swiftCommands" : {
+    "C.ismcts-x86_64-unknown-linux-gnu-release.module" : {
+      "executable" : "/home/arvind/.local/share/swiftly/toolchains/6.3.3/usr/bin/swiftc",
+      "fileList" : "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/sources",
+      "importPath" : "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/Modules",
+      "inputs" : [
+        {
+          "kind" : "file",
+          "name" : "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/Sources/ismcts/AIPersonality.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/Sources/ismcts/AIPlayer.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/Sources/ismcts/Bid.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/Sources/ismcts/Card.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/Sources/ismcts/GameEngine.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/Sources/ismcts/MesterAI.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/Sources/ismcts/MesterISMCTS.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/Sources/ismcts/MesterSolver.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/Sources/ismcts/MesterVerden.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/Sources/ismcts/NevroNett.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/Sources/ismcts/NevroVekter.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/Sources/ismcts/Opptak.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/Sources/ismcts/main.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/swift-version-2A5BCF4FD86D23D3.txt"
+        },
+        {
+          "kind" : "file",
+          "name" : "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/sources"
+        }
+      ],
+      "isLibrary" : false,
+      "moduleName" : "ismcts",
+      "moduleOutputPath" : "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/Modules/ismcts.swiftmodule",
+      "objects" : [
+        "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/AIPersonality.swift.o",
+        "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/AIPlayer.swift.o",
+        "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/Bid.swift.o",
+        "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/Card.swift.o",
+        "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/GameEngine.swift.o",
+        "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/MesterAI.swift.o",
+        "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/MesterISMCTS.swift.o",
+        "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/MesterSolver.swift.o",
+        "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/MesterVerden.swift.o",
+        "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/NevroNett.swift.o",
+        "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/NevroVekter.swift.o",
+        "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/Opptak.swift.o",
+        "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/main.swift.o"
+      ],
+      "otherArguments" : [
+        "-target",
+        "x86_64-unknown-linux-gnu",
+        "-whole-module-optimization",
+        "-num-threads",
+        "22",
+        "-serialize-diagnostics",
+        "-O",
+        "-j22",
+        "-DSWIFT_PACKAGE",
+        "-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE",
+        "-module-cache-path",
+        "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ModuleCache",
+        "-parseable-output",
+        "-Xfrontend",
+        "-entry-point-function-name",
+        "-Xfrontend",
+        "ismcts_main",
+        "-swift-version",
+        "5",
+        "-O",
+        "-g",
+        "-Xcc",
+        "-fPIC",
+        "-Xcc",
+        "-g",
+        "-package-name",
+        "ismcts",
+        "-Xcc",
+        "-fno-omit-frame-pointer"
+      ],
+      "outputFileMapPath" : "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/output-file-map.json",
+      "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/AIPersonality.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/AIPlayer.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/Bid.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/Card.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/GameEngine.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/MesterAI.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/MesterISMCTS.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/MesterSolver.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/MesterVerden.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/NevroNett.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/NevroVekter.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/Opptak.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/main.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/Modules/ismcts.swiftmodule"
+        }
+      ],
+      "prepareForIndexing" : false,
+      "sources" : [
+        "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/Sources/ismcts/AIPersonality.swift",
+        "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/Sources/ismcts/AIPlayer.swift",
+        "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/Sources/ismcts/Bid.swift",
+        "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/Sources/ismcts/Card.swift",
+        "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/Sources/ismcts/GameEngine.swift",
+        "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/Sources/ismcts/MesterAI.swift",
+        "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/Sources/ismcts/MesterISMCTS.swift",
+        "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/Sources/ismcts/MesterSolver.swift",
+        "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/Sources/ismcts/MesterVerden.swift",
+        "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/Sources/ismcts/NevroNett.swift",
+        "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/Sources/ismcts/NevroVekter.swift",
+        "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/Sources/ismcts/Opptak.swift",
+        "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/Sources/ismcts/main.swift"
+      ],
+      "tempsPath" : "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build",
+      "wholeModuleOptimization" : true
+    }
+  },
+  "swiftFrontendCommands" : {
+
+  },
+  "swiftTargetScanArgs" : {
+    "ismcts" : [
+      "/home/arvind/.local/share/swiftly/toolchains/6.3.3/usr/bin/swiftc",
+      "-module-name",
+      "ismcts",
+      "-package-name",
+      "ismcts",
+      "-c",
+      "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/Sources/ismcts/AIPersonality.swift",
+      "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/Sources/ismcts/AIPlayer.swift",
+      "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/Sources/ismcts/Bid.swift",
+      "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/Sources/ismcts/Card.swift",
+      "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/Sources/ismcts/GameEngine.swift",
+      "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/Sources/ismcts/MesterAI.swift",
+      "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/Sources/ismcts/MesterISMCTS.swift",
+      "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/Sources/ismcts/MesterSolver.swift",
+      "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/Sources/ismcts/MesterVerden.swift",
+      "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/Sources/ismcts/NevroNett.swift",
+      "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/Sources/ismcts/NevroVekter.swift",
+      "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/Sources/ismcts/Opptak.swift",
+      "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/Sources/ismcts/main.swift",
+      "-I",
+      "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/Modules",
+      "-target",
+      "x86_64-unknown-linux-gnu",
+      "-whole-module-optimization",
+      "-num-threads",
+      "22",
+      "-serialize-diagnostics",
+      "-O",
+      "-j22",
+      "-DSWIFT_PACKAGE",
+      "-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE",
+      "-module-cache-path",
+      "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ModuleCache",
+      "-parseable-output",
+      "-Xfrontend",
+      "-entry-point-function-name",
+      "-Xfrontend",
+      "ismcts_main",
+      "-swift-version",
+      "5",
+      "-O",
+      "-g",
+      "-Xcc",
+      "-fPIC",
+      "-Xcc",
+      "-g",
+      "-package-name",
+      "ismcts",
+      "-Xcc",
+      "-fno-omit-frame-pointer",
+      "-driver-use-frontend-path",
+      "/home/arvind/.local/share/swiftly/toolchains/6.3.3/usr/bin/swiftc"
+    ]
+  },
+  "targetDependencyMap" : {
+    "ismcts" : [
+
+    ]
+  },
+  "testDiscoveryCommands" : {
+
+  },
+  "testEntryPointCommands" : {
+
+  },
+  "traitConfiguration" : {
+    "default" : {
+
+    }
+  },
+  "writeCommands" : {
+    "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/sources" : {
+      "alwaysOutOfDate" : false,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<sources-file-list>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/Sources/ismcts/AIPersonality.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/Sources/ismcts/AIPlayer.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/Sources/ismcts/Bid.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/Sources/ismcts/Card.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/Sources/ismcts/GameEngine.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/Sources/ismcts/MesterAI.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/Sources/ismcts/MesterISMCTS.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/Sources/ismcts/MesterSolver.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/Sources/ismcts/MesterVerden.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/Sources/ismcts/NevroNett.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/Sources/ismcts/NevroVekter.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/Sources/ismcts/Opptak.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/Sources/ismcts/main.swift"
+        }
+      ],
+      "outputFilePath" : "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/sources"
+    },
+    "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.product/Objects.LinkFileList" : {
+      "alwaysOutOfDate" : false,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<link-file-list>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/AIPersonality.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/AIPlayer.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/Bid.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/Card.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/GameEngine.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/MesterAI.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/MesterISMCTS.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/MesterSolver.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/MesterVerden.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/NevroNett.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/NevroVekter.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/Opptak.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/main.swift.o"
+        }
+      ],
+      "outputFilePath" : "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.product/Objects.LinkFileList"
+    },
+    "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/swift-version-2A5BCF4FD86D23D3.txt" : {
+      "alwaysOutOfDate" : true,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<swift-get-version>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/home/arvind/.local/share/swiftly/toolchains/6.3.3/usr/bin/swiftc"
+        }
+      ],
+      "outputFilePath" : "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/swift-version-2A5BCF4FD86D23D3.txt"
+    }
+  }
+}

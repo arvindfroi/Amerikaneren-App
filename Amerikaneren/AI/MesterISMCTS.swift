@@ -78,6 +78,27 @@ private final class ISTre {
 
     private(set) var iterasjoner = 0
 
+    // MARK: Instrumentering: hvor mye av utfallet treet faktisk bestemmer
+    //
+    // Kjernepåstanden bak ISMCTS er at treet gradvis OVERTAR for den faste
+    // utrullingspolicyen: beslutningen flyttes fra håndskreven regel til
+    // innsamlet statistikk. Vokser dybden med iterasjonstallet samtidig som
+    // styrken vokser, er det treet – og ikke ren variansreduksjon – som gjør
+    // jobben. Alt her er O(1) per iterasjon.
+
+    /// Antall kort som gjenstår å spille fra rotstillingen. Hver iterasjon
+    /// tar nøyaktig så mange beslutninger, fordelt på tre og utrulling.
+    private(set) var kortIgjenVedRot = 0
+    /// Sum av tredybden (antall beslutninger tatt inne i treet, medregnet
+    /// ekspansjonstrekket) over alle iterasjoner.
+    private(set) var dybdeSum = 0
+    /// Sum av utvalgsdybden: beslutninger tatt av availability-UCB alene,
+    /// altså uten ekspansjonstrekket som velges tilfeldig blant ubesøkte.
+    private(set) var utvalgSum = 0
+    private(set) var dybdeMaks = 0
+    /// `dybdeHist[d]` = antall iterasjoner med tredybde nøyaktig `d`.
+    private(set) var dybdeHist: [Int] = []
+
     init(innsikt: Spillinnsikt, konfig: ISMCTSKonfig, rotkandidater: [Int], frø: UInt64) {
         self.innsikt = innsikt
         self.konfig = konfig
@@ -86,6 +107,8 @@ private final class ISTre {
         self.rng = SeededGenerator(seed: frø == 0 ? 0xD1B5_4A32_D192_ED03 : frø)
         self.noder = [ISNode(sete: innsikt.sete)]
         noder.reserveCapacity(4096)
+        self.kortIgjenVedRot = (0..<4).reduce(0) { $0 + innsikt.antallKort[$1] }
+        self.dybdeHist = [Int](repeating: 0, count: kortIgjenVedRot + 2)
     }
 
     // MARK: Kjøring
@@ -127,10 +150,12 @@ private final class ISTre {
 
         // ── Utvelgelse + ekspansjon ─────────────────────────────────────
         var node = 0
+        var ekspanderte = false
         while true {
             let lovlige = node == 0 ? rotkandidater : lovligeTrekk(t)
             if lovlige.isEmpty { break }
             let (kant, nyGren) = velgKant(node: node, lovlige: lovlige)
+            if nyGren { ekspanderte = true }
             sti.append((node, kant))
             let kort = noder[node].kanter[kant].kort
             if let vinner = Spillregler.utfør(&t, indeks: kort) { perSete[vinner] += 1 }
@@ -168,6 +193,14 @@ private final class ISTre {
             noder[n].kanter[k].besøk += 1
             noder[n].kanter[k].sum += verdi
         }
+
+        // Hvor stor del av runden treet selv bestemte i denne iterasjonen.
+        let dybde = sti.count
+        dybdeSum += dybde
+        utvalgSum += ekspanderte ? max(0, dybde - 1) : dybde
+        if dybde > dybdeMaks { dybdeMaks = dybde }
+        if dybde < dybdeHist.count { dybdeHist[dybde] += 1 }
+
         iterasjoner += 1
     }
 
@@ -256,6 +289,43 @@ private final class ISTre {
     }
 }
 
+// MARK: - Hvor mye av utfallet treet bestemmer
+
+/// Måletall for ETT kortvalg: hvor dypt treet rekker, og hvor stor andel av
+/// beslutningene fram til rundeslutt som tas av treets egen statistikk
+/// framfor av den faste utrullingspolicyen.
+///
+/// Dette er den mekanistiske testen på om ISMCTS virker slik teorien sier:
+/// vokser dybden med iterasjonstallet SAMTIDIG som styrken vokser, er det
+/// treet som gjør jobben – ikke bare at flere utrullinger demper støyen.
+struct Treprofil {
+    var iterasjoner = 0
+    /// Kort som gjenstår å spille fra rotstillingen = beslutninger per iterasjon.
+    var beslutningerTotalt = 0
+    /// Absolutt stikknummer ved roten (0-basert) og kort alt lagt i stikket.
+    var rotStikk = 0
+    var pågåendeVedRot = 0
+    /// Snittdybde: beslutninger tatt inne i treet per iterasjon (medregnet
+    /// ekspansjonstrekket).
+    var snittDybde = 0.0
+    /// Som over, men uten ekspansjonstrekket – rene UCB-beslutninger.
+    var snittUtvalgsdybde = 0.0
+    var maksDybde = 0
+    /// `andelTre[i]` = andel av iterasjonene der beslutning nr. `i` etter
+    /// roten ble tatt inne i treet. Faller monotont fra 1 mot 0.
+    var andelTre: [Double] = []
+
+    /// Andel av ALLE beslutningene fram til rundeslutt som treet tok.
+    var andelAvRunden: Double {
+        beslutningerTotalt > 0 ? snittDybde / Double(beslutningerTotalt) : 0
+    }
+
+    /// Hvilket absolutt stikk beslutning nr. `i` etter roten hører til.
+    func stikk(forBeslutning i: Int) -> Int {
+        rotStikk + (i + pågåendeVedRot) / 4
+    }
+}
+
 // MARK: - Spilleren
 
 /// **SO-ISMCTS** (single-observer information set Monte Carlo tree search,
@@ -298,6 +368,7 @@ final class MesterISMCTS {
     /// Måletall fra siste `velgKort`.
     private(set) var sisteIterasjoner = 0
     private(set) var sisteRotfordeling: [(kort: Card, besøk: Int, snitt: Double)] = []
+    private(set) var sisteTreprofil = Treprofil()
 
     init(sete: Int, konfig: ISMCTSKonfig = ISMCTSKonfig(), seed: UInt64? = nil) {
         self.sete = sete
@@ -310,6 +381,7 @@ final class MesterISMCTS {
         guard !lovlige.isEmpty else { return nil }
         sisteIterasjoner = 0
         sisteRotfordeling = []
+        sisteTreprofil = Treprofil()
         if lovlige.count == 1 { return lovlige[0] }
         guard let innsikt = Spillinnsikt(engine: engine, sete: sete) else { return nil }
 
@@ -328,6 +400,9 @@ final class MesterISMCTS {
 
         var besøk = [Int](repeating: 0, count: kandidater.count)
         var sum = [Double](repeating: 0, count: kandidater.count)
+        let beslutninger = (0..<4).reduce(0) { $0 + innsikt.antallKort[$1] }
+        var dybdeSum = 0, utvalgSum = 0, dybdeMaks = 0
+        var dybdeHist = [Int](repeating: 0, count: beslutninger + 2)
 
         if arbeidere == 1 {
             let tre = ISTre(innsikt: innsikt, konfig: konfig,
@@ -335,6 +410,10 @@ final class MesterISMCTS {
             tre.kjør(frist: frist, maksIterasjoner: konfig.maksIterasjoner)
             (besøk, sum) = tre.rotstatistikk(kandidater)
             sisteIterasjoner = tre.iterasjoner
+            dybdeSum = tre.dybdeSum
+            utvalgSum = tre.utvalgSum
+            dybdeMaks = tre.dybdeMaks
+            for (d, n) in tre.dybdeHist.enumerated() where d < dybdeHist.count { dybdeHist[d] += n }
         } else {
             // Rotparallellisering: uavhengige trær som slås sammen på roten.
             // Valgt framfor tre-parallellisering med lås fordi trærne ikke
@@ -346,21 +425,32 @@ final class MesterISMCTS {
             let antall = kandidater.count
             var delbesøk = [Int](repeating: 0, count: arbeidere * antall)
             var delsum = [Double](repeating: 0, count: arbeidere * antall)
-            var deliter = [Int](repeating: 0, count: arbeidere)
+            // Per arbeider: [iterasjoner, dybdeSum, utvalgSum, dybdeMaks].
+            var deltall = [Int](repeating: 0, count: arbeidere * 4)
+            let histBredde = dybdeHist.count
+            var delhist = [Int](repeating: 0, count: arbeidere * histBredde)
             delbesøk.withUnsafeMutableBufferPointer { bBuf in
                 delsum.withUnsafeMutableBufferPointer { sBuf in
-                    deliter.withUnsafeMutableBufferPointer { iBuf in
-                        DispatchQueue.concurrentPerform(iterations: arbeidere) { w in
-                            let tre = ISTre(innsikt: innsikt, konfig: konfig,
-                                            rotkandidater: kandidater,
-                                            frø: Self.avledetFrø(basefrø, w))
-                            tre.kjør(frist: frist, maksIterasjoner: konfig.maksIterasjoner)
-                            let (b, s) = tre.rotstatistikk(kandidater)
-                            for i in 0..<antall {
-                                bBuf[w * antall + i] = b[i]
-                                sBuf[w * antall + i] = s[i]
+                    deltall.withUnsafeMutableBufferPointer { tBuf in
+                        delhist.withUnsafeMutableBufferPointer { hBuf in
+                            DispatchQueue.concurrentPerform(iterations: arbeidere) { w in
+                                let tre = ISTre(innsikt: innsikt, konfig: konfig,
+                                                rotkandidater: kandidater,
+                                                frø: Self.avledetFrø(basefrø, w))
+                                tre.kjør(frist: frist, maksIterasjoner: konfig.maksIterasjoner)
+                                let (b, s) = tre.rotstatistikk(kandidater)
+                                for i in 0..<antall {
+                                    bBuf[w * antall + i] = b[i]
+                                    sBuf[w * antall + i] = s[i]
+                                }
+                                tBuf[w * 4] = tre.iterasjoner
+                                tBuf[w * 4 + 1] = tre.dybdeSum
+                                tBuf[w * 4 + 2] = tre.utvalgSum
+                                tBuf[w * 4 + 3] = tre.dybdeMaks
+                                for (d, n) in tre.dybdeHist.enumerated() where d < histBredde {
+                                    hBuf[w * histBredde + d] = n
+                                }
                             }
-                            iBuf[w] = tre.iterasjoner
                         }
                     }
                 }
@@ -370,8 +460,34 @@ final class MesterISMCTS {
                     besøk[i] += delbesøk[w * antall + i]
                     sum[i] += delsum[w * antall + i]
                 }
-                sisteIterasjoner += deliter[w]
+                sisteIterasjoner += deltall[w * 4]
+                dybdeSum += deltall[w * 4 + 1]
+                utvalgSum += deltall[w * 4 + 2]
+                dybdeMaks = max(dybdeMaks, deltall[w * 4 + 3])
+                for d in 0..<histBredde { dybdeHist[d] += delhist[w * histBredde + d] }
             }
+        }
+
+        if sisteIterasjoner > 0 {
+            var profil = Treprofil()
+            profil.iterasjoner = sisteIterasjoner
+            profil.beslutningerTotalt = beslutninger
+            profil.rotStikk = innsikt.trickNummer
+            profil.pågåendeVedRot = innsikt.pågående.count
+            profil.snittDybde = Double(dybdeSum) / Double(sisteIterasjoner)
+            profil.snittUtvalgsdybde = Double(utvalgSum) / Double(sisteIterasjoner)
+            profil.maksDybde = dybdeMaks
+            // Andel av iterasjonene der beslutning nr. i lå INNE i treet:
+            // halen av dybdehistogrammet.
+            var andel = [Double](repeating: 0, count: beslutninger)
+            var hale = sisteIterasjoner
+            for i in 0..<beslutninger {
+                // Beslutning nr. i lå i treet når dybden var minst i+1.
+                if i < dybdeHist.count { hale -= dybdeHist[i] }
+                andel[i] = Double(hale) / Double(sisteIterasjoner)
+            }
+            profil.andelTre = andel
+            sisteTreprofil = profil
         }
 
         sisteRotfordeling = kandidater.enumerated().map {

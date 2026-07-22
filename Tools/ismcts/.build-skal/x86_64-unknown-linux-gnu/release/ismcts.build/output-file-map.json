@@ -1,0 +1,85 @@
+{
+  "": {
+    "dependencies": "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/ismcts.d",
+    "object": "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/ismcts.o",
+    "swift-dependencies": "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/primary.swiftdeps"
+  },
+  "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/Sources/ismcts/AIPersonality.swift": {
+    "object": "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/AIPersonality.swift.o",
+    "swiftmodule": "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/AIPersonality~partial.swiftmodule",
+    "swift-dependencies": "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/AIPersonality.swiftdeps",
+    "diagnostics": "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/AIPersonality.dia"
+  },
+  "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/Sources/ismcts/AIPlayer.swift": {
+    "object": "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/AIPlayer.swift.o",
+    "swiftmodule": "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/AIPlayer~partial.swiftmodule",
+    "swift-dependencies": "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/AIPlayer.swiftdeps",
+    "diagnostics": "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/AIPlayer.dia"
+  },
+  "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/Sources/ismcts/Bid.swift": {
+    "object": "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/Bid.swift.o",
+    "swiftmodule": "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/Bid~partial.swiftmodule",
+    "swift-dependencies": "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/Bid.swiftdeps",
+    "diagnostics": "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/Bid.dia"
+  },
+  "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/Sources/ismcts/Card.swift": {
+    "object": "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/Card.swift.o",
+    "swiftmodule": "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/Card~partial.swiftmodule",
+    "swift-dependencies": "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/Card.swiftdeps",
+    "diagnostics": "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/Card.dia"
+  },
+  "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/Sources/ismcts/GameEngine.swift": {
+    "object": "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/GameEngine.swift.o",
+    "swiftmodule": "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/GameEngine~partial.swiftmodule",
+    "swift-dependencies": "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/GameEngine.swiftdeps",
+    "diagnostics": "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/GameEngine.dia"
+  },
+  "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/Sources/ismcts/MesterAI.swift": {
+    "object": "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/MesterAI.swift.o",
+    "swiftmodule": "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/MesterAI~partial.swiftmodule",
+    "swift-dependencies": "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/MesterAI.swiftdeps",
+    "diagnostics": "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/MesterAI.dia"
+  },
+  "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/Sources/ismcts/MesterISMCTS.swift": {
+    "object": "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/MesterISMCTS.swift.o",
+    "swiftmodule": "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/MesterISMCTS~partial.swiftmodule",
+    "swift-dependencies": "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/MesterISMCTS.swiftdeps",
+    "diagnostics": "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/MesterISMCTS.dia"
+  },
+  "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/Sources/ismcts/MesterSolver.swift": {
+    "object": "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/MesterSolver.swift.o",
+    "swiftmodule": "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/MesterSolver~partial.swiftmodule",
+    "swift-dependencies": "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/MesterSolver.swiftdeps",
+    "diagnostics": "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/MesterSolver.dia"
+  },
+  "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/Sources/ismcts/MesterVerden.swift": {
+    "object": "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/MesterVerden.swift.o",
+    "swiftmodule": "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/MesterVerden~partial.swiftmodule",
+    "swift-dependencies": "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/MesterVerden.swiftdeps",
+    "diagnostics": "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/MesterVerden.dia"
+  },
+  "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/Sources/ismcts/NevroNett.swift": {
+    "object": "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/NevroNett.swift.o",
+    "swiftmodule": "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/NevroNett~partial.swiftmodule",
+    "swift-dependencies": "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/NevroNett.swiftdeps",
+    "diagnostics": "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/NevroNett.dia"
+  },
+  "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/Sources/ismcts/NevroVekter.swift": {
+    "object": "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/NevroVekter.swift.o",
+    "swiftmodule": "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/NevroVekter~partial.swiftmodule",
+    "swift-dependencies": "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/NevroVekter.swiftdeps",
+    "diagnostics": "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/NevroVekter.dia"
+  },
+  "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/Sources/ismcts/Opptak.swift": {
+    "object": "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/Opptak.swift.o",
+    "swiftmodule": "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/Opptak~partial.swiftmodule",
+    "swift-dependencies": "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/Opptak.swiftdeps",
+    "diagnostics": "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/Opptak.dia"
+  },
+  "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/Sources/ismcts/main.swift": {
+    "object": "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/main.swift.o",
+    "swiftmodule": "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/main~partial.swiftmodule",
+    "swift-dependencies": "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/main.swiftdeps",
+    "diagnostics": "/home/arvind/Amerikaneren-ismcts/Tools/ismcts/.build-skal/x86_64-unknown-linux-gnu/release/ismcts.build/main.dia"
+  }
+}

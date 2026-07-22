@@ -81,12 +81,28 @@ func snittOgSE(_ x: [Double]) -> (snitt: Double, se: Double, n: Int) {
 /// Dagens MesterAI slik den kjører på denne maskinen. `tak` > 0 hever
 /// verdenstaket, slik at PIMC faktisk får brukt opp hele tidsbudsjettet
 /// (standardtaket på 36 verdener er ellers bindende lenge før tiden er ute).
-func pimcKonfig(tid: Double, tak: Int = 0, utenKlokke: Bool = false) -> MesterKonfig {
+/// Hvor mange verdener budgivningen bruker. Budrunden er ikke det vi måler –
+/// begge armer melder med den SAMME MesterAI-en – men den koster mer per
+/// runde enn hele kortspillsøket til sammen (64 verdener × grådig utrulling
+/// med eksakt hale, per sete, per runde). Å skru den ned gir mange ganger
+/// flere målte runder for samme maskintid, symmetrisk for begge armer.
+var budVerdener = 0
+
+func pimcKonfig(tid: Double, tak: Int = 0, utenKlokke: Bool = false,
+                sluttTak: Int = 0) -> MesterKonfig {
     var k = MesterKonfig.automatisk()
     k.tidsbudsjett = tid
     if tak > 0 {
         k.maksVerdener = tak
         k.maksVerdenerSluttspill = max(tak, k.maksVerdenerSluttspill)
+    }
+    // Sluttspillstaket på 1200 verdener er det dyreste MesterAI gjør. Skal
+    // motstanderen være KLOKKEFRI (og dermed uavhengig av maskinlast) må det
+    // ned, ellers koster ett trekk nesten et sekund.
+    if sluttTak > 0 { k.maksVerdenerSluttspill = sluttTak }
+    if budVerdener > 0 {
+        k.verdenerVedBud = budVerdener
+        k.verdenerVedBytte = max(4, budVerdener / 3)
     }
     if utenKlokke {
         // Motstanderen skal være IDENTISK fra punkt til punkt på
@@ -375,7 +391,7 @@ struct H2HSvar {
 @discardableResult
 func kjørH2H(runder: Int, isTid: Double, pimcTid: Double, tråder: Int, blad: Int, pimcTak: Int,
              fra: Int, iterasjoner: Int, merke: String, stille: Bool = false,
-             pimcUtenKlokke: Bool = false) -> H2HSvar {
+             pimcUtenKlokke: Bool = false, pimcSluttTak: Int = 0) -> H2HSvar {
     if !stille {
         si("== Hode mot hode (\(merke)): ISMCTS mot MesterAI ==")
     }
@@ -397,7 +413,8 @@ func kjørH2H(runder: Int, isTid: Double, pimcTid: Double, tråder: Int, blad: I
             let isSeter: Set<Int> = orientering == 0 ? [0, 2] : [1, 3]
             let seter = (0..<4).map { s in
                 Sete(nummer: s, valg: isSeter.contains(s) ? .ismcts : .pimc,
-                     mesterKonfig: pimcKonfig(tid: pimcTid, tak: pimcTak, utenKlokke: pimcUtenKlokke),
+                     mesterKonfig: pimcKonfig(tid: pimcTid, tak: pimcTak,
+                                              utenKlokke: pimcUtenKlokke, sluttTak: pimcSluttTak),
                      isKonfig: isKonfig(tid: isTid, tråder: tråder, blad: blad,
                                         iterasjoner: iterasjoner),
                      frø: frø)
@@ -460,12 +477,17 @@ func kjørH2H(runder: Int, isTid: Double, pimcTid: Double, tråder: Int, blad: I
 /// Motstanderen er den samme som i hovedmålingen (MesterAI ved fast
 /// tidsbudsjett), slik at punktene på kurven kan leses på samme skala som
 /// hovedtallet. Maskinlasten logges per punkt.
-func kjørKurve(runder: Int, iterasjonsliste: [Int], pimcTid: Double, blad: Int) {
-    si("== Iterasjonskurve: ISMCTS mot MesterAI (\(pimcTid) s) på identiske utdelinger ==")
+func kjørKurve(runder: Int, iterasjonsliste: [Int], pimcTid: Double, blad: Int,
+               utenKlokke: Bool = false, sluttTak: Int = 0, merkelapp: String = "kurve") {
+    let hvordan = utenKlokke
+        ? "MesterAI med faste verdenstak (klokkefri, sluttspillstak \(sluttTak > 0 ? "\(sluttTak)" : "1200"))"
+        : "MesterAI (\(pimcTid) s)"
+    si("== Iterasjonskurve: ISMCTS mot \(hvordan) på identiske utdelinger ==")
     for n in iterasjonsliste {
         let svar = kjørH2H(runder: runder, isTid: 0, pimcTid: pimcTid, tråder: 1,
                            blad: blad, pimcTak: 0,
-                           fra: 0, iterasjoner: n, merke: "kurve_\(n)", stille: true)
+                           fra: 0, iterasjoner: n, merke: "\(merkelapp)_\(n)", stille: true,
+                           pimcUtenKlokke: utenKlokke, pimcSluttTak: sluttTak)
         si(String(format: "  %6d iterasjoner: %+.3f ± %.3f poeng per lagrunde (n=%d, %.1f SE)",
                   n, svar.differanse, svar.se, svar.n, svar.se > 0 ? svar.differanse / svar.se : 0))
         logg(["maaling": "kurve_punkt", "iterasjoner": n, "differanse": svar.differanse,
@@ -489,9 +511,172 @@ func kjørBlad(runder: Int, tid: Double) {
     }
 }
 
+// MARK: - 6) Skalering: ISMCTS mot seg selv med færre iterasjoner
+
+/// Den reneste testen på om metoden skalerer: samme algoritme på begge sider,
+/// bare ulikt søkebudsjett. Alt annet – målfunksjon, utrullingspolicy,
+/// verdensfordeling – er identisk, så en forskjell KAN bare komme av at
+/// treet er bedre bygget. Mot PIMC drukner det samme signalet i at de to
+/// motorene er forskjellige på mange måter samtidig.
+///
+/// Speilet og parret som hovedmålingen: samme utdelinger for alle punkter.
+func kjørSkalering(runder: Int, basis: Int, liste: [Int], blad: Int) {
+    si("== Skalering: ISMCTS(N) mot ISMCTS(\(basis)) på identiske utdelinger ==")
+    for n in liste where n != basis {
+        let arbeidere = min(standardArbeidere, runder)
+        var diff = [Double](repeating: 0, count: runder)
+        var ok = [Bool](repeating: false, count: runder)
+        let lås = NSLock()
+        let start = Date()
+        parallelt(runder, arbeidere: arbeidere) { r in
+            let seed = UInt64(r + 1) &* 2_654_435_761 &+ 17
+            let frø = seed &* 31 &+ 7
+            var rundeDiff = 0.0
+            for orientering in 0..<2 {
+                let store: Set<Int> = orientering == 0 ? [0, 2] : [1, 3]
+                let seter = (0..<4).map { s in
+                    Sete(nummer: s, valg: .ismcts, mesterKonfig: pimcKonfig(tid: 0.2),
+                         isKonfig: isKonfig(tid: 0, blad: blad,
+                                            iterasjoner: store.contains(s) ? n : basis),
+                         frø: frø)
+                }
+                guard let poeng = spillRunde(seed: seed, seter: seter) else { return }
+                let a = store.reduce(0) { $0 + poeng[$1] }
+                let b = (0..<4).filter { !store.contains($0) }.reduce(0) { $0 + poeng[$1] }
+                rundeDiff += Double(a - b) / 2.0
+            }
+            lås.lock()
+            diff[r] = rundeDiff
+            ok[r] = true
+            lås.unlock()
+        }
+        let gyldige = (0..<runder).filter { ok[$0] }.map { diff[$0] }
+        let (m, se, antall) = snittOgSE(gyldige)
+        si(String(format: "  %6d mot %d: %+.3f ± %.3f poeng per lagrunde (n=%d, %.1f SE, %.0f s)",
+                  n, basis, m, se, antall, se > 0 ? m / se : 0, Date().timeIntervalSince(start)))
+        logg(["maaling": "h2h", "merke": "skalering_\(n)_mot_\(basis)",
+              "differanse": m, "se": se, "n": antall, "blad": blad,
+              "iterasjonstak": n, "basis": basis,
+              "se_avstand": se > 0 ? m / se : 0, "differanser": gyldige])
+    }
+}
+
+// MARK: - 7) Treets overtakelse
+
+/// Måler den mekanistiske påstanden bak ISMCTS: at treet gradvis OVERTAR for
+/// den faste utrullingspolicyen. For hvert iterasjonstall rapporteres
+///
+///   * tredybden ved rotbeslutningen (snitt og maks) – hvor mange av
+///     beslutningene fram til rundeslutt som tas av treets egen statistikk,
+///   * andelen av beslutningene som treet tar, totalt og per stikk.
+///
+/// Vokser disse med iterasjonstallet samtidig som styrken vokser, er det
+/// treet som gjør jobben – ikke bare at flere utrullinger demper støyen.
+func kjørTre(runder: Int, iterasjonsliste: [Int], blad: Int) {
+    si("== Treets overtakelse: hvor mye av runden treet selv bestemmer ==")
+    let stikkTotalt = 12
+    for n in iterasjonsliste {
+        var dybdeSum = 0.0, utvalgSum = 0.0, andelSum = 0.0, trekk = 0
+        var maks = 0
+        // Per stikk: hvor stor andel av beslutningene i det stikket treet tok.
+        var perStikkAndel = [Double](repeating: 0, count: stikkTotalt + 1)
+        var perStikkTeller = [Double](repeating: 0, count: stikkTotalt + 1)
+        // Hvor dypt (i stikk regnet fra roten) treet rekker.
+        var stikkDybdeSum = 0.0
+
+        let arbeidere = min(standardArbeidere, runder)
+        let lås = NSLock()
+        parallelt(runder, arbeidere: arbeidere) { r in
+            let seed = UInt64(r + 1) &* 2_654_435_761 &+ 17
+            let frø = seed &* 31 &+ 7
+            let seter = (0..<4).map {
+                Sete(nummer: $0, valg: .ismcts, mesterKonfig: pimcKonfig(tid: 0.2),
+                     isKonfig: isKonfig(tid: 0, blad: blad, iterasjoner: n), frø: frø)
+            }
+            var lokalProfiler: [Treprofil] = []
+            let engine = GameEngine()
+            engine.startRunde(seed: seed)
+            var vakt = 0
+            while engine.phase != .rundeFerdig && engine.phase != .spillFerdig {
+                vakt += 1
+                if vakt > 400 { return }
+                switch engine.phase {
+                case .budrunde:
+                    let s = engine.aktivBudgiver
+                    let lovlige = engine.lovligeBud(for: s)
+                    let b = seter[s].mester.velgBud(engine: engine)
+                    guard engine.giBud(seat: s, action: lovlige.contains(b) ? b : .pass) else { return }
+                case .byttekort:
+                    guard let s = engine.budgiverSeat else { return }
+                    var vrak = seter[s].mester.velgByttekort(engine: engine)
+                    if vrak.count != engine.rules.antallByttekort {
+                        vrak = Array(engine.hands[s].prefix(engine.rules.antallByttekort))
+                    }
+                    guard engine.kastByttekort(vrak, seat: s) else { return }
+                case .velgTrumf:
+                    guard let s = engine.budgiverSeat else { return }
+                    if let (suit, ø) = seter[s].mester.velgTrumfOgMakker(engine: engine),
+                       engine.velgTrumf(suit: suit, ønsket: ø) { continue }
+                    var reddet = false
+                    for s2 in Suit.allCases {
+                        if let ø = engine.kortSomKanØnskes(trumf: s2).first,
+                           engine.velgTrumf(suit: s2, ønsket: ø) { reddet = true; break }
+                    }
+                    if !reddet, !engine.velgTrumf(suit: .spar, ønsket: nil) { return }
+                case .spill:
+                    let s = engine.aktivSpiller
+                    guard let kort = seter[s].velgKort(engine: engine),
+                          engine.spill(kort: kort, seat: s) else { return }
+                    let p = seter[s].søk!.sisteTreprofil
+                    if p.iterasjoner > 0 { lokalProfiler.append(p) }
+                default:
+                    return
+                }
+            }
+            lås.lock()
+            for p in lokalProfiler {
+                dybdeSum += p.snittDybde
+                utvalgSum += p.snittUtvalgsdybde
+                andelSum += p.andelAvRunden
+                maks = max(maks, p.maksDybde)
+                trekk += 1
+                // Snittdybden i STIKK: hvor mange stikk framover treet rekker.
+                stikkDybdeSum += p.snittDybde / 4.0
+                for (i, a) in p.andelTre.enumerated() {
+                    let stikk = min(stikkTotalt, p.stikk(forBeslutning: i))
+                    perStikkAndel[stikk] += a
+                    perStikkTeller[stikk] += 1
+                }
+            }
+            lås.unlock()
+        }
+
+        guard trekk > 0 else { continue }
+        let snittDybde = dybdeSum / Double(trekk)
+        let snittUtvalg = utvalgSum / Double(trekk)
+        let andel = andelSum / Double(trekk)
+        si(String(format: "  %6d iterasjoner: tredybde %.2f beslutninger (%.2f uten ekspansjon, maks %d) = %.1f %% av runden, %.2f stikk framover",
+                  n, snittDybde, snittUtvalg, maks, andel * 100, stikkDybdeSum / Double(trekk)))
+        var perStikk: [String: Any] = [:]
+        var linje = "      per stikk (andel tre-beslutninger):"
+        for st in 0..<stikkTotalt where perStikkTeller[st] > 0 {
+            let a = perStikkAndel[st] / perStikkTeller[st]
+            linje += String(format: " s%d:%.0f%%", st + 1, a * 100)
+            perStikk["stikk_\(st + 1)"] = a
+        }
+        si(linje)
+        logg(["maaling": "tre_overtakelse", "iterasjoner": n, "blad": blad,
+              "snitt_dybde": snittDybde, "snitt_utvalgsdybde": snittUtvalg,
+              "maks_dybde": maks, "andel_av_runden": andel,
+              "stikk_framover": stikkDybdeSum / Double(trekk),
+              "trekk": trekk, "runder": runder, "per_stikk": perStikk])
+    }
+}
+
 // MARK: - Kjøring
 
-si("kjerner=\(kjerner)  arbeidere=\(standardArbeidere)  logg=\(loggSti)")
+budVerdener = tall("budverdener", 0)
+si("kjerner=\(kjerner)  arbeidere=\(standardArbeidere)  budverdener=\(budVerdener == 0 ? 64 : budVerdener)  logg=\(loggSti)")
 switch kommando {
 case "sanitet":
     kjørSanitet(runder: tall("runder", 200), tid: desimal("tid", 0.2))
@@ -509,9 +694,18 @@ case "h2h":
 case "kurve":
     let liste = tekst("iter", "200,1000,5000,20000").split(separator: ",").compactMap { Int($0) }
     kjørKurve(runder: tall("runder", 120), iterasjonsliste: liste,
-              pimcTid: desimal("pimctid", 0.2), blad: tall("blad", 0))
+              pimcTid: desimal("pimctid", 0.2), blad: tall("blad", 0),
+              utenKlokke: tall("pimcfast", 0) == 1, sluttTak: tall("pimcslutt", 0),
+              merkelapp: tekst("merke", "kurve"))
 case "blad":
     kjørBlad(runder: tall("runder", 150), tid: desimal("tid", 0.2))
+case "tre":
+    let liste = tekst("iter", "200,1000,5000,20000").split(separator: ",").compactMap { Int($0) }
+    kjørTre(runder: tall("runder", 30), iterasjonsliste: liste, blad: tall("blad", 0))
+case "skalering":
+    let liste = tekst("iter", "1000,5000,20000").split(separator: ",").compactMap { Int($0) }
+    kjørSkalering(runder: tall("runder", 300), basis: tall("basis", 200),
+                  liste: liste, blad: tall("blad", 0))
 default:
     si("""
     Bruk:
