@@ -382,20 +382,68 @@ final class MesterAI {
 
     // MARK: - Kortspill
 
+    /// Én kandidat i kortrangeringen: representanten for en sekvens
+    /// likeverdige kort, verdien (vektet snitt av målfunksjonen i `vurder`
+    /// over de samplede verdenene) og hvilke lovlige kort som er utbyttbare
+    /// med representanten (inkludert den selv).
+    struct Kortkandidat {
+        let kort: Card
+        let likeverdige: [Card]
+        let verdi: Double
+    }
+
     func velgKort(engine: GameEngine) -> Card? {
+        velgKortMedRangering(engine: engine)?.valg
+    }
+
+    /// Som `velgKort`, men returnerer i tillegg hele kandidatrangeringen
+    /// (anbefalingen først) og antall samplede verdener. Brukes av
+    /// trener-modusen i web-GUI-en. Valget er identisk med `velgKort`
+    /// (som delegerer hit), og metoden ser aldri skjult informasjon –
+    /// all innsikt går via `Spillinnsikt`.
+    func velgKortMedRangering(engine: GameEngine)
+        -> (valg: Card, kandidater: [Kortkandidat], verdener: Int)? {
         let lovlige = engine.lovligeKort(for: sete)
         guard !lovlige.isEmpty else { return nil }
-        if lovlige.count == 1 { return lovlige[0] }
+        if lovlige.count == 1 {
+            return (lovlige[0], [Kortkandidat(kort: lovlige[0], likeverdige: lovlige, verdi: 0)], 0)
+        }
         guard let innsikt = Spillinnsikt(engine: engine, sete: sete) else { return nil }
 
         // Likeverdige kort (ingen gjenværende kort imellom) prøves bare én gang.
         let pågåendeMaske = innsikt.pågående.reduce(UInt64(0)) { $0 | (1 << UInt64($1.indeks)) }
         let union = innsikt.ukjente | innsikt.minHånd | pågåendeMaske
-        let kandidater = Spillregler.reduserteTrekk(lovlig: Kortmaske.maske(lovlige), union: union)
-        if kandidater.count == 1 { return Kortmaske.kort(kandidater[0]) }
+        let lovligMaske = Kortmaske.maske(lovlige)
+        let kandidater = Spillregler.reduserteTrekk(lovlig: lovligMaske, union: union)
+
+        // Kortene som er utbyttbare med `representant`: sammenhengende
+        // lovlige kort (i union-rekkefølgen) fra representanten og nedover –
+        // speilbildet av sekvensreduksjonen i `Spillregler.reduserteTrekk`.
+        func likeverdige(med representant: Int) -> [Card] {
+            var u = union & Kortmaske.fargeMaske(representant / 13)
+            var gruppe: [Int] = []
+            while u != 0 {
+                let idx = 63 - u.leadingZeroBitCount
+                u &= ~(1 << UInt64(idx))
+                if lovligMaske & (1 << UInt64(idx)) != 0 {
+                    if idx == representant || !gruppe.isEmpty { gruppe.append(idx) }
+                } else if !gruppe.isEmpty {
+                    break
+                }
+            }
+            return gruppe.map(Kortmaske.kort)
+        }
+
+        if kandidater.count == 1 {
+            let kort = Kortmaske.kort(kandidater[0])
+            return (kort, [Kortkandidat(kort: kort,
+                                        likeverdige: likeverdige(med: kandidater[0]),
+                                        verdi: 0)], 0)
+        }
 
         let frist = Date().addingTimeInterval(konfig.tidsbudsjett)
         var sum = [Double](repeating: 0, count: kandidater.count)
+        var vektSum = 0.0
         // Når hele resten løses eksakt gjelder sluttspillstaket; ellers det
         // ordinære taket (der begrenser tidsbudsjettet uansett først).
         let stikkIgjen = innsikt.antallKort[innsikt.leder] + (innsikt.pågående.isEmpty ? 0 : 1)
@@ -412,6 +460,7 @@ final class MesterAI {
             for (i, kandidat) in kandidater.enumerated() {
                 sum[i] += vekt * vurder(kandidat: kandidat, verden: verden, innsikt: innsikt, dd: dd)
             }
+            vektSum += vekt
             verdener += 1
         }
         guard verdener > 0 else { return nil }
@@ -428,7 +477,20 @@ final class MesterAI {
                 besteSum = sum[i]
             }
         }
-        return Kortmaske.kort(besteIndeks)
+
+        let valg = Kortmaske.kort(besteIndeks)
+        let normering = max(vektSum, 1e-9)
+        var rangering = kandidater.enumerated().map { i, kandidat in
+            Kortkandidat(kort: Kortmaske.kort(kandidat),
+                         likeverdige: likeverdige(med: kandidat),
+                         verdi: sum[i] / normering)
+        }
+        rangering.sort { $0.verdi > $1.verdi }
+        // Anbefalingen (med kostnads-tiebreak) skal alltid stå først.
+        if let i = rangering.firstIndex(where: { $0.kort == valg }), i != 0 {
+            rangering.insert(rangering.remove(at: i), at: 0)
+        }
+        return (valg, rangering, verdener)
     }
 
     /// Verdien av å legge `kandidat` i den samplede verdenen: spill grådig

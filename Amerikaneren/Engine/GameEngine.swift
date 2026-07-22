@@ -152,6 +152,13 @@ final class GameEngine {
         precondition(hender.allSatisfy { $0.count == rules.kortPerSpiller })
         precondition(nyTalon.count == rules.antallByttekort)
         let n = rules.antallSpillere
+        // Konvensjonen gjennom hele motoren er førsteBudgiver = giver + 1.
+        // Sett giveren tilsvarende, slik at en motor som bygges opp fra en
+        // forhåndsbestemt utdeling (avspilling/tidsreise) roterer giveren
+        // riktig videre til neste runde. For den vanlige flyten (seedet
+        // utdeling via `startRunde(seed:)`) er dette identisk med verdien
+        // giveren allerede har.
+        dealer = (førsteBudgiver - 1 + n) % n
         hands = hender
         talon = nyTalon
         utdelteHender = hender
