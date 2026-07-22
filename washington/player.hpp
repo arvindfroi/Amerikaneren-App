@@ -265,6 +265,75 @@ static int choosePlay(const Round& R, int seat, PlayPolicy pol, int nWorlds, int
     return cand[best];
 }
 
+// ---- Rene mask-helpere for vrak/trumf (brukt av simulert budgivning) ----
+static u64 discardMask(u64 h16){
+    auto bt=besteTrumf(h16); int trump=bt.first;
+    std::vector<int> c=idxsVec(h16);
+    std::sort(c.begin(),c.end(),[&](int a,int b){return gCost(a,trump)<gCost(b,trump);});
+    u64 d=0; for(int k=0;k<4;k++) d|=bit(c[k]); return d;
+}
+static std::pair<int,int> trumpAskMask(u64 h12,u64 dead){
+    auto bt=besteTrumf(h12); int suit=bt.first;
+    u64 live=(~(h12|dead))&ALL52, lt=live&suitMask(suit);
+    return {suit, lt?highest(lt):highest(live)};
+}
+
+// Simuler at 'declarer' spiller runden i en gitt (full) verden. Returnerer
+// stikk per sete, makker og lagstikk. Grådig utrulling (rask, lik for alle).
+struct Decl { std::array<int,4> perSeat; int partner; int teamTricks; };
+static Decl simulateDeclare(std::array<u64,4> hands, u64 talong, int declarer, bool solo, int tricksTotal){
+    u64 dh=hands[declarer]|talong; u64 disc=discardMask(dh); hands[declarer]=dh&~disc;
+    auto ta=trumpAskMask(hands[declarer],disc); int suit=ta.first, ask=ta.second;
+    int partner=-1; if(!solo) for(int s=0;s<4;s++) if(s!=declarer&&(hands[s]&bit(ask))){partner=s;break;}
+    SState t{}; t.hands=hands; t.leader=declarer; t.trump=suit; t.bidWinner=declarer;
+    t.teamMask=(uint8_t)(1<<declarer); if(partner>=0) t.teamMask|=(1<<partner);
+    t.firstTrick=true; t.plikt=ask; t.trCount=0;
+    std::array<int,4> perSeat{};
+    while((t.hands[0]|t.hands[1]|t.hands[2]|t.hands[3])!=0){ int idx=greedyPick(t); int w=applyMove(t,idx); if(w>=0) perSeat[w]++; }
+    int team=perSeat[declarer]+(partner>=0?perSeat[partner]:0);
+    return {perSeat,partner,team};
+}
+
+// Simulert budgivning: sammenlign pass / hvert lovlig tallbud / Amerikaner /
+// solo på forventet poengsum over samplede verdener. Boten byr som den vil.
+template<class RNG>
+static int chooseBidSim(const Round& R, int seat, int nWorlds, RNG& rng){
+    auto legal=R.legalBids(seat); if(legal.empty()) return BID_PASS;
+    if(legal.size()==1) return legal[0];
+    u64 myHand=R.hands[seat];
+    std::vector<int> pool=idxsVec(ALL52 & ~myHand);
+    int T=R.tricksTotal;
+    // EV-akkumulatorer
+    std::array<double,15> ev{}; std::array<int,15> cnt{};
+    bool canAmerik=false, canSolo=false, canPass=false;
+    for(int b:legal){ if(b==BID_AMERIKANER)canAmerik=true; else if(b==BID_SOLO)canSolo=true; else if(b==BID_PASS)canPass=true; }
+    for(int w=0; w<nWorlds; w++){
+        std::shuffle(pool.begin(),pool.end(),rng);
+        std::array<u64,4> hands{}; hands[seat]=myHand; u64 talong=0; int p=0;
+        for(int off=1; off<=3; off++){ int s=(seat+off)%4; for(int k=0;k<12;k++) hands[s]|=bit(pool[p++]); }
+        for(int k=0;k<4;k++) talong|=bit(pool[p++]);
+        // Min deklarasjon med makker (dekker tallbud + Amerikaner)
+        Decl a=simulateDeclare(hands,talong,seat,false,T);
+        for(int b:legal){ if(b>=R.minBid&&b<=R.maxBid){ bool made=a.teamTricks>=b; ev[b]+= made?2*b:-2*b; cnt[b]++; } }
+        if(canAmerik){ bool made=a.teamTricks==T; ev[BID_AMERIKANER]+= made? R.targetScore/2 : -R.targetScore/2; cnt[BID_AMERIKANER]++; }
+        // Min solo-deklarasjon
+        if(canSolo){ Decl s=simulateDeclare(hands,talong,seat,true,T); bool made=s.perSeat[seat]==T; ev[BID_SOLO]+= made?R.targetScore:-R.targetScore; cnt[BID_SOLO]++; }
+        // Pass: nåværende høybyder (ellers sterkeste motstander) deklarerer
+        if(canPass){
+            int d=-1, lvl=R.highBid;
+            if(R.highSeat>=0 && R.highSeat!=seat && R.highBid>=R.minBid){ d=R.highSeat; }
+            else { double best=-1; for(int o=0;o<4;o++) if(o!=seat){ double e=besteTrumf(hands[o]).second+2; if(e>best){best=e; d=o; lvl=std::max(R.minBid,std::min(R.maxBid,(int)std::lround(e)));} } if(best< R.minBid) d=-1; }
+            double mine=0;
+            if(d>=0){ Decl c=simulateDeclare(hands,talong,d,false,T); bool made=c.teamTricks>=lvl;
+                if(c.partner==seat) mine = made? lvl : -lvl; else mine = c.perSeat[seat]; }
+            ev[BID_PASS]+=mine; cnt[BID_PASS]++;
+        }
+    }
+    int best=-1; double bestEv=-1e18;
+    for(int b:legal){ if(cnt[b]==0) continue; double e=ev[b]/cnt[b]; if(e>bestEv){bestEv=e;best=b;} }
+    return best<0? BID_PASS : best;
+}
+
 // ---- Delte heuristiske bud/vrak/trumf-policyer (like for alle spillere) ----
 static int chooseBid(const Round& R, int seat){
     auto lb=R.legalBids(seat); if(lb.empty()) return BID_PASS;
