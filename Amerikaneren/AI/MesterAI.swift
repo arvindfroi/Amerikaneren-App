@@ -15,6 +15,12 @@ struct MesterKonfig {
     /// Når så mange stikk (eller færre) gjenstår, løses resten eksakt med
     /// dobbeltdummy; før det spilles grådig fram til grensen.
     var eksaktStikkGrense = 6
+    /// Grense brukt i simuleringene for bud, byttekort og trumfvalg.
+    /// `nil` betyr samme verdi som `eksaktStikkGrense`; feltet finnes for
+    /// aa kunne maale kortspill og budgivning hver for seg.
+    var eksaktStikkGrenseSim: Int? = nil
+    /// Den effektive grensen i bud-/bytte-/trumfsimuleringene.
+    var simGrense: Int { eksaktStikkGrenseSim ?? eksaktStikkGrense }
     /// Myk tidsgrense for ett kortvalg.
     var tidsbudsjett: TimeInterval = 0.45
     /// Antall samplede utdelinger for budvurdering og trumfvalg.
@@ -136,7 +142,7 @@ final class MesterAI {
                 hånd: minHånd, farge: heuristiskFarge, hender: hender,
                 talon: talon, regler: regler
             ) {
-                deklStikk.append((GrådigSpiller.lagStikk(plan, eksaktFra: konfig.eksaktStikkGrense), vekt))
+                deklStikk.append((GrådigSpiller.lagStikk(plan, eksaktFra: konfig.simGrense), vekt))
             }
 
             // Scenario 2: jeg passer, og den sterkeste motstanderen spiller.
@@ -149,7 +155,7 @@ final class MesterAI {
                 talon: talon, regler: regler
             ) {
                 soloTalt += vekt
-                if GrådigSpiller.lagStikk(solo, eksaktFra: konfig.eksaktStikkGrense) == alleStikk {
+                if GrådigSpiller.lagStikk(solo, eksaktFra: konfig.simGrense) == alleStikk {
                     soloKlart += vekt
                 }
             }
@@ -268,7 +274,7 @@ final class MesterAI {
                     hender: h, leder: sete, pågående: [], trumfFarge: kandidat.trumf,
                     lagMaske: lag, budgiver: sete, pliktkort: plikt, førsteStikk: true
                 )
-                let stikk = GrådigSpiller.lagStikk(tilstand, eksaktFra: konfig.eksaktStikkGrense)
+                let stikk = GrådigSpiller.lagStikk(tilstand, eksaktFra: konfig.simGrense)
                 if stikk >= mål { klarte[i] += vekt }
                 sumStikk[i] += vekt * Double(stikk)
             }
@@ -369,7 +375,7 @@ final class MesterAI {
                     lagMaske: lag, budgiver: sete, pliktkort: ønskeIdx,
                     førsteStikk: true
                 )
-                let stikk = GrådigSpiller.lagStikk(tilstand, eksaktFra: konfig.eksaktStikkGrense)
+                let stikk = GrådigSpiller.lagStikk(tilstand, eksaktFra: konfig.simGrense)
                 if stikk >= mål { klarte[i] += vekt }
                 sumStikk[i] += vekt * Double(stikk)
             }

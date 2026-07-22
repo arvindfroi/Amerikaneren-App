@@ -778,3 +778,74 @@ if kommando == "ab2" {
                           Double(sumMed) / Double(max(1, diff.count)), m, 1.96 * se, ulike))
     }
 }
+
+if kommando == "fusjon" {
+    // Parret kurve over eksaktStikkGrense. FASTE verdenstall (min == maks ==
+    // sluttspilltak) og tidsbudsjett som aldri binder => helt lastuavhengig,
+    // og armene ser noeyaktig samme utdelinger og samme Monte Carlo-tall.
+    //   fusjon <utfil> <froeStart> <antall> <verdener> <armer> [merkelapp]
+    // <armer> er komma-separert; hvert element er "kort" eller "kort:sim",
+    // f.eks. "0,2,4,6,7,8" eller "7:0,0:7".
+    let args = CommandLine.arguments
+    let utfil = args.count > 2 ? args[2] : NSHomeDirectory() + "/fusjon/resultater.jsonl"
+    let froeStart = args.count > 3 ? UInt64(args[3]) ?? 1 : 1
+    let antall = args.count > 4 ? UInt64(args[4]) ?? 100 : 100
+    let verdener = args.count > 5 ? Int(args[5]) ?? 36 : 36
+    let armSpek = args.count > 6 ? args[6] : "0,2,4,6,7,8"
+    let merkelapp = args.count > 7 ? args[7] : "kurve"
+
+    let armer: [(kort: Int, sim: Int, navn: String)] = armSpek.split(separator: ",").map { del in
+        let d = del.split(separator: ":")
+        let kort = Int(d[0]) ?? 6
+        let sim = d.count > 1 ? (Int(d[1]) ?? kort) : kort
+        return (kort, sim, String(del))
+    }
+
+    let logg = Loggfil(utfil)
+    let start = Date()
+    var skrevet = 0
+    for i in 0..<antall {
+        let froe = froeStart &+ i
+        for arm in armer {
+            var k = MesterKonfig()
+            k.maksVerdener = verdener
+            k.minVerdener = verdener
+            k.maksVerdenerSluttspill = verdener   // samme tak uansett grense
+            k.eksaktStikkGrense = arm.kort
+            k.eksaktStikkGrenseSim = arm.sim
+            k.tidsbudsjett = 1e9                  // klokka avgjoer aldri noe
+            k.verdenerVedBud = 48
+            k.verdenerVedBytte = 20
+            MesterAI.overstyrKonfig = k
+            MesterAI.overstyrFrø = 4242
+            let spillere: [Int: AIPlayer] = [
+                0: AIPlayer(seat: 0, difficulty: .president, personality: .balansert),
+                1: AIPlayer(seat: 1, difficulty: .vanskelig, personality: .balansert),
+                2: AIPlayer(seat: 2, difficulty: .vanskelig, personality: .balansert),
+                3: AIPlayer(seat: 3, difficulty: .vanskelig, personality: .balansert),
+            ]
+            guard let r = spillRunde(seed: froe, spillere: spillere) else { continue }
+            let bud: String
+            switch r.bud {
+            case .bud(let n): bud = "\(n)"
+            case .amerikaner: bud = "amerikaner"
+            case .soloAmerikaner: bud = "solo"
+            case .pass: bud = "pass"
+            }
+            logg.skriv("{\"merkelapp\":\"\(merkelapp)\",\"verdener\":\(verdener),"
+                + "\"arm\":\"\(arm.navn)\",\"kort\":\(arm.kort),\"sim\":\(arm.sim),"
+                + "\"froe\":\(froe),\"poeng0\":\(r.poengEndring[0]),"
+                + "\"budgiver\":\(r.budgiver),\"bud\":\"\(bud)\","
+                + "\"klarte\":\(r.klarte),\"stikk0\":\(r.stikkPerSpiller[0])}")
+            skrevet += 1
+        }
+        if (i + 1) % 10 == 0 {
+            FileHandle.standardError.write(
+                "  \(i + 1)/\(antall) runder etter \(Int(Date().timeIntervalSince(start))) s\n"
+                    .data(using: .utf8)!)
+        }
+    }
+    MesterAI.overstyrKonfig = nil
+    MesterAI.overstyrFrø = nil
+    print("fusjon: skrev \(skrevet) linjer til \(utfil) paa \(Int(Date().timeIntervalSince(start))) s")
+}
